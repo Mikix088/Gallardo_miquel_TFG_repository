@@ -17,10 +17,10 @@ This script serves as a comprehensive solution for integrating and preprocessing
 
 Key functionalities include:
 
--Integration of multiple datasets into a unified format, ensuring consistency across different data sources.
--Quality assessment and cleaning procedures to identify and handle missing values, outliers, and inconsistencies.
--Generation of covariate and phenotype files required for downstream genetic association analyses.
--Exporting the cleaned and processed data in various formats for easy access and compatibility with statistical analysis tools.
+- Integration of multiple datasets into a unified format, ensuring consistency across different data sources.
+- Quality assessment and cleaning procedures to identify and handle missing values, outliers, and inconsistencies.
+- Generation of covariate and phenotype files required for downstream genetic association analyses.
+- Exporting the cleaned and processed data in various formats for easy access and compatibility with statistical analysis tools.
 
 By automating these preprocessing tasks, the script streamlines the data preparation pipeline, enabling researchers to focus on interpreting results and deriving insights from complex genetic and phenotypic datasets.
 
