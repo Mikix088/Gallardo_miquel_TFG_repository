@@ -1,0 +1,1681 @@
+---
+title: "QC"
+author: "Miquel"
+date: "2024-02-05"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = "/home/stroke/Documentos/Miquel_Gallardo/real_data/Dcs/MERGE/")
+```
+
+Library
+```{r}
+library(ggstatsplot)
+library(data.table)
+library(dplyr)
+library(tidyr)
+library(h2o)
+library(readxl)
+library(readr)
+library(biomaRt)
+library(readxl)
+library(tidyverse)
+library(gdsfmt)
+library(SNPRelate)
+library(scatterplot3d)
+library(plyr)
+library(geneplotter)
+library(e1071)
+library(robustbase)
+library(univOutl)
+library(lawstat)
+library(ggplot2)
+library(readODS)
+```
+
+```{r}
+data <- read_ods("/home/stroke/Documentos/Miquel_Gallardo/real_data/02._Plink_files/Discrepancias_S23FPGMX033.ods")
+fam <- fread("GWAS_18_PLINK.fam")
+
+fam$V1 <- gsub("^X", "", fam$V1)
+fam$V2 <- gsub("^X", "", fam$V2)
+
+matching <- match(fam$V2, data$Sample.Filename)
+
+fam$V5 <- data$Genero.Esperado[matching]
+fam$V5 <- ifelse(fam$V5 == "male", 1, 2)
+
+assign_value <- function(id){
+  if (startsWith(id, "SP_")){
+    return(1)
+  }else{
+    return(2)
+  }
+}
+
+fam$V6 <- sapply(fam$V1, assign_value)
+
+write.table(fam, "GWAS_18_PLINK.fam", sep=" ", row.names = FALSE, col.names = FALSE, quote = FALSE)
+```
+
+```{r}
+fwrite(fam[,1:6], file="GWAS_18_PLINK_2.fam", col.names = F, row.names = F, sep = " ", quote = F)
+```
+# CHR AFFYMETRIX TO PLINK
+```{r}
+bim <- fread("GWAS_18_PLINK.bim")
+table(bim$V1)
+bim[bim$V1==24,"V1"] <- 23
+bim[bim$V1==25,"V1"] <- 24
+fwrite(bim,file="GWAS_18_PLINK_2.bim", col.names = F, row.names = F, sep = " ", quote = F)
+table(bim$V1)
+```
+
+```{bash}
+plink --bfile GWAS_18_PLINK_2 --split-x hg19 --make-bed --out ASB006.plink
+```
+
+```{r}
+cohortes <- c("ASB006")
+
+qc_report <- data.frame("QC"=as.character(c(1:16)),"numSNPs_c3"=1:16,"numIDs_c3"=1:16)
+qc_report[1,1] <- "No QC"
+
+bim <- fread("ASB006.plink.bim")
+
+qc_report[1,2] <- nrow(bim)
+qc_report[1,3] <- nrow(fam)
+
+ 
+fwrite(bim[,2], file = "QC_reports/1.ASB006.snps", col.names = F, quote = F, sep = "\t", row.names = F)
+fwrite(fam[,1], file = "QC_reports/1.ASB006.ids", col.names = F, quote = F, sep = "\t", row.names = F)
+```
+
+```{bash}
+plink --bfile ASB006.plink --missing --out ASB006.plink 
+```
+
+```{r}
+snp_miss <- fread("/home/stroke/Documentos/Miquel_Gallardo/real_data/02._Plink_files/ASB006.plink.lmiss")
+ind_miss <- fread("/home/stroke/Documentos/Miquel_Gallardo/real_data/02._Plink_files/ASB006.plink.imiss")
+```
+
+```{bash}
+plink --bfile ASB006.plink --geno 0.1 --make-bed --out snps_ASB006
+```
+
+```{r}
+qc_report[2,1] <- "Geno 0.1"
+
+bim <- fread("/home/stroke/Documentos/Miquel_Gallardo/real_data/02._Plink_files/snps_ASB006.bim")
+fam <- fread("/home/stroke/Documentos/Miquel_Gallardo/real_data/02._Plink_files/snps_ASB006.fam")
+
+qc_report[2,2] <- nrow(bim)
+qc_report[2,3] <- nrow(fam)
+
+fwrite(bim[,2], file = "QC_reports/2.ASB006.snps", col.names = F, quote = F, sep = "\t", row.names = F)
+fwrite(fam[,1], file = "QC_reports/2.ASB006.ids", col.names = F, quote = F, sep = "\t", row.names = F)
+```
+
+```{r}
+snpmiss <- as.data.frame(fread("ASB006.plink.lmiss"), header = T)
+indmiss <- as.data.frame(fread("ASB006.plink.imiss"), header = T)
+snp <- as.data.frame(snpmiss)
+ind <- as.data.frame(indmiss)
+percentil_snp <- quantile(snp$F_MISS, prob=seq(0, 1, length = 101))
+percentil_ind<-quantile(ind$F_MISS, prob=seq(0, 1, length = 101))
+print("ASB006")
+print(percentil_snp[c(91:101)])
+print(percentil_ind[c(91:101)])
+  
+png("PLOTS_QCs/MISS/ASB06_histlmiss.png")
+hist(as.matrix(snp[,5]),main="Histogram SNP missingness ASB006", xlim = c(0,1),breaks=seq(0,1,0.01))  
+dev.off()
+
+gg_het<-ggplot(ind, aes(x=F_MISS, y=IID)) + 
+  geom_point(shape=1, size=2)+
+  xlim(0,max(ind$F_MISS))+
+  ggtitle("Missing Data IID ASB006")+
+  xlab("Proportion of missing individuals")+
+  ylab("IID")+
+  geom_vline(xintercept = c(0.1, 0.05, 0.02), 
+            color = c("#FF66FF","#4C0099","#9999FF"),
+            linetype="dashed",
+            size=0.8)+
+   theme(plot.title = element_text(color="black", size=14, face="bold"),
+         axis.title.x = element_text(color="#404040", size=10,face="bold"),
+         axis.title.y = element_text(color="#404040", size=10,face="bold"))
+         
+ggsave(plot = gg_het, filename = "PLOTS_QCs/MISS/ASB006_imiss.png", dpi=300, device="png")
+png("PLOTS_QCs/MISS/ASB006_boxplot_imiss.png")
+dev.off()
+```
+
+## 3. Delete individuals with missingness 
+```{bash}
+plink --bfile snps_ASB006 --mind 0.1 --make-bed --out missings_ASB006
+```
+
+```{r}
+qc_report[3,1] <- "Missings ind 0.1"
+ 
+bim <- fread("missings_ASB006.bim")
+fam <- fread("missings_ASB006.fam")
+  
+qc_report[3,2] <- nrow(bim)
+qc_report[3,3] <- nrow(fam)
+ 
+fwrite(bim[,2], file ="QC_reports/3.ASB006.snps", col.names = F, quote = F, sep = "\t", row.names = F)
+fwrite(fam[,1], file ="QC_reports/3.ASB006.ids", col.names = F, quote = F, sep = "\t", row.names = F)
+```
+
+## 4.  Remove weird SNPs
+### Extract non bialelics
+```{r}
+missings_bim <- fread("missings_ASB006.bim")
+
+# Select indels
+alelos <- c("A","C","T","G")
+indels<-missings_bim[-which((missings_bim$V5%in% alelos)&(missings_bim$V6%in% alelos)),]
+```
+
+### Extract ambiguous
+```{r}
+# Remove SNPs due to indels
+missings_bim <- missings_bim[!missings_bim$V2%in% indels$V2,]
+# Filter ambiguous:
+ambiguos<-data.table(missings_bim[which((missings_bim$V5=="A" & missings_bim$V6=="T")|(missings_bim$V5=="T" & missings_bim$V6=="A")|(missings_bim$V5=="G" & missings_bim$V6=="C")|(missings_bim$V5=="C" & missings_bim$V6=="G")),])
+```
+
+### Extract snps not in 1:23 
+```{r}
+# Retire those ambiguous SNPs
+missings_bim <- missings_bim[!missings_bim$V2%in% ambiguos$V2,]
+# Filter chromosomes:
+chrs_raros<-missings_bim[which(!missings_bim$V1%in% 1:23),]
+```
+
+### Joint lists and extract snps
+```{r}
+exclusion <- rbind(as.data.frame(indels),as.data.frame(ambiguos), as.data.frame(chrs_raros))
+write.table(exclusion[,2], file="Indels-ambig-chrs2426_ASB006.snp", col.names = F, quote = F, sep = "\t", row.names = F)
+```
+
+#### QC report
+```{r}
+qc_report[4,1] <- "Bialelicos_indels"
+
+bim <- fread("missings_ASB006.bim")
+fam <- fread("missings_ASB006.fam")
+
+qc_report[4,2] <- nrow(bim)-nrow(indels) 
+qc_report[4,3] <- nrow(fam)
+
+fwrite(bim[,2], file = "QC_reports/4.ASB006.snps", col.names = F, quote = F, sep = "\t", row.names = F)
+fwrite(fam[,1], file = "QC_reports/4.ASB006.ids", col.names = F, quote = F, sep = "\t", row.names = F)
+```
+
+```{r}
+qc_report[5,1] <- "No_ambiguos"
+
+bim <- fread("missings_ASB006.bim")
+fam <- fread("missings_ASB006.fam")
+
+qc_report[5,2] <- nrow(bim)-nrow(indels)-nrow(ambiguos) 
+qc_report[5,3] <- nrow(fam)
+
+fwrite(bim[,2], file = "QC_reports/5.ASB006.snps", col.names = F, quote = F, sep = "\t", row.names = F)
+fwrite(fam[,1], file = "QC_reports/5.ASB006.ids", col.names = F, quote = F, sep = "\t", row.names = F)
+```
+
+```{r}
+qc_report[6,1] <- "CHR1-23"
+
+bim <- fread("missings_ASB006.bim")
+fam <- fread("missings_ASB006.fam")
+
+qc_report[6,2] <- nrow(bim)-nrow(indels)-nrow(ambiguos)-nrow(chrs_raros) 
+qc_report[6,3] <- nrow(fam)
+
+fwrite(bim[,2], file ="QC_reports/6.ASB006.snps", col.names = F, quote = F, sep = "\t", row.names = F)
+fwrite(fam[,1], file ="QC_reports/6.ASB006.ids", col.names = F, quote = F, sep = "\t", row.names = F)
+```
+
+```{bash}
+plink --bfile missings_ASB006 --exclude Indels-ambig-chrs2426_ASB006.snp --make-bed --out clean_ASB006
+```
+
+## 5. Duplicates
+### SNP
+#### Look if there are duplicated SNPs
+```{r}
+# Load .bim
+clean<- fread("clean_ASB006.bim")
+# Add CBP column 
+clean$CHRBP <- paste0(clean$V1,":",clean$V4)
+callrate <- fread("/home/stroke/Documentos/Miquel_Gallardo/real_data/02._Plink_files/GWAS_18_PLINK.lmiss")
+# Add call rate info
+callrate <- callrate[which(callrate$SNP%in% clean$V2),]
+clean_callrate <- merge(as.data.frame(clean), as.data.frame(callrate), by.x="V2", by.y="SNP")
+snp_duplicados<-clean_callrate[duplicated(clean_callrate$CHRBP),]
+snp_duplicados<-snp_duplicados[snp_duplicados$V1<23,] 
+```
+
+#### Select SNP to remove
+```{r}
+#Create a base with only duplicates (if there are no groups, the next step in dplyr cannot act). Select from each group with the same CBP name the one with the smallest F_MISS, which will be the one to keep.
+base_duplicados<-clean_callrate[clean_callrate$CHRBP %in% snp_duplicados$CHRBP,]
+
+clean_missings<-base_duplicados %>%
+  dplyr::group_by(CHRBP) %>%
+  dplyr::arrange(F_MISS) %>%
+  dplyr::slice(1) %>%
+  ungroup()
+
+# SNP to remove as they are not present in the selection list created before
+delete<-base_duplicados[!(base_duplicados$V2 %in% clean_missings$V2),]
+delete_id<-delete[,"V2"]
+
+write.table(delete_id,file = "delete_id_ASB006.snp",col.names =F, row.names = F, quote = F, sep=" ")
+```
+
+#### Check if there are remaining duplicates
+```{r}
+# Remove from the data the exclusion list  
+dupl_clean<-base_duplicados[!base_duplicados$V2 %in% delete$V2,]
+
+# Check again if there are duplicates remaining
+
+base_duplicados_clean<-dupl_clean[duplicated(dupl_clean$CHRBP),]
+```
+
+```{r}
+qc_report[7,1] <- "No_duplicados"
+
+bim <- fread("clean_ASB006.bim")
+fam <- fread("clean_ASB006.fam")
+
+qc_report[7,2] <- nrow(bim)-nrow(delete) 
+qc_report[7,3] <- nrow(fam)
+
+fwrite(bim[,2], file = "QC_reports/7.ASB006.snps", col.names = F, quote = F, sep = "\t", row.names = F)
+fwrite(fam[,1], file = "QC_reports/7.ASB006.ids", col.names = F, quote = F, sep = "\t", row.names = F)
+```
+
+#### Remove duplicates   
+```{bash}
+plink --bfile clean_ASB006 --exclude delete_id_ASB006.snp --make-bed --out nodupl_ASB006
+```
+
+```{r}
+no_dupl <- fread("nodupl_ASB006.bim")
+check <- no_dupl[duplicated(no_dupl$V2),]
+```
+
+## 6. Rename to CHR:POS
+```{bash}
+awk '{print $2,$1":"$4}' nodupl_ASB006.bim > nodupl_ASBOO6_toUpdate.txt
+
+plink --bfile nodupl_ASB006 --update-name nodupl_ASB006_toUpdate.txt 2 1 --make-bed --out nodupl_ASB006_updated
+```
+### Generate call rate
+```{bash}
+plink --bfile nodupl_ASB006_updated --missing --out missings_ASB006_updated
+```
+### Remove dupls
+```{bash}
+plink2 --bfile nodupl_ASB006_updated --rm-dup exclude-mismatch --make-bed --out nodupl_ASB006
+```
+
+### Check if there are duplicates 
+```{r}
+updated <- fread("nodupl_ASB006.bim")
+check<- updated[duplicated(updated$V2),]
+```
+
+```{r}
+qc_report[8,1] <- "No_dupl_chrbp"
+
+bim <- fread("nodupl_ASB006.bim")
+fam <- fread("nodupl_ASB006.fam")
+
+qc_report[8,2] <- nrow(bim)
+qc_report[8,3] <- nrow(fam)
+
+fwrite(bim[,2], file = "QC_reports/8.ASB006.snps", col.names = F, quote = F, sep = "\t", row.names = F)
+fwrite(fam[,1], file = "QC_reports/8.ASB006.ids", col.names = F, quote = F, sep = "\t", row.names = F)
+```
+
+## 7.  Remove monomorfic snps
+```{bash}
+plink --bfile nodupl_ASB006_updated --mac 1  --make-bed --out nodupl_mac1_ASB006_updated --allow-no-sex
+```
+
+```{r}
+qc_report[9,1] <- "No_MAC1"
+
+bim <- fread("nodupl_mac1_ASB006_updated.bim")
+fam <- fread("nodupl_mac1_ASB006_updated.fam")
+
+qc_report[9,2] <- nrow(bim)
+qc_report[9,3] <- nrow(fam)
+
+fwrite(bim[,2], file = "QC_reports/9.ASB006.snps", col.names = F, quote = F, sep = "\t", row.names = F)
+fwrite(fam[,1], file = "QC_reports/9.ASB006.ids", col.names = F, quote = F, sep = "\t", row.names = F)
+```
+
+## 8. Sex 
+```{bash}
+# To check for gender mismatch we use the PLINK function filtering for **MAF >0.1 to avoid rare variants effect.** --maf 0.1 Avoiding rare variants we eliminate problems with haployd genome and reduced heterogeneity regions thus mismatch gender calling 
+plink --bfile nodupl_mac1_ASB006_updated --maf 0.1 --check-sex --out ASB006
+```
+
+```{r}
+sex_data <- fread("ASB006.sexcheck")
+print("ASB006")
+print(table(sex_data$STATUS))
+```
+
+```{r}
+sex_data <- fread("ASB006.sexcheck")
+pdf("PLOTS_QCs/SEX/F_dist_ASB006.pdf", height = 5)
+ggbetweenstats(data = sex_data,
+               y=F,
+               x=PEDSEX,
+               ylab = "F distribution",
+               xlab=" ",
+               title ="ASB006",
+               subtitle = "1=Male, 2=Female",
+               plot.type = "box",
+               outlier.tagging = FALSE,
+               outlier.label=NULL,
+               outlier.color = "#000000",
+               mean.plotting = FALSE,
+               mean.color = "#202020",
+               type = "nonparametric",
+               results.subtitle = FALSE
+               )
+dev.off()
+```
+
+```{bash}
+plink --bfile nodupl_mac1_ASB006_updated --maf 0.1 --check-sex 0.4 --out ASB006
+```
+
+```{r}
+sex_data <- fread("ASB006.sexcheck")
+print("ASB006")
+print(table(sex_data$STATUS))
+```
+
+```{r}
+sex_data <- fread("ASB006.sexcheck")
+print("ASB006")
+sex_data_problem <- sex_data[sex_data$STATUS=="PROBLEM",]
+```
+
+```{bash}
+grep "PROBLEM" ASB006.sexcheck | awk '{print$1,$2}'> sex_discrepancy_ASB006.txt
+```
+
+```{bash}
+plink --bfile nodupl_mac1_ASB006_updated --remove sex_discrepancy_ASB006.txt --make-bed --out sex_ASB006
+```
+
+```{r}
+qc_report[10,1] <- "No_sex_discrepancy"
+
+bim <- fread("sex_ASB006.bim")
+fam <- fread("sex_ASB006.fam")
+
+qc_report[10,2] <- nrow(bim)
+qc_report[10,3] <- nrow(fam)
+
+fwrite(bim[,2], file = "QC_reports/10.ASB006.snps", col.names = F, quote = F, sep = "\t", row.names = F)
+fwrite(fam[,1], file = "QC_reports/10.ASB006.ids", col.names = F, quote = F, sep = "\t", row.names = F)
+```
+
+## 9. Remove chr 23 
+### Computing the MAF distribution.
+```{bash}
+#########################
+#####  use the 'case-control' modifier to write a case/control
+#####  phenotype-stratified report to plink.frq.cc.
+######################
+plink --bfile sex_ASB006 --freq --out sex_ASB006
+plink --bfile sex_ASB006 --freq counts --out sex_ASB006
+```
+
+### Remove SNPs in chr X.
+```{bash}
+plink2 --bfile sex_ASB006 --chr 1-22 --make-bed --out chr1-22_ASB006
+```
+
+```{r}
+qc_report[11,1] <- "CHR1-22"
+
+bim <- fread("chr1-22_ASB006.bim")
+fam <- fread("chr1-22_ASB006.fam")
+
+qc_report[11,2] <- nrow(bim)
+qc_report[11,3] <- nrow(fam)
+
+fwrite(bim[,2], file ="QC_reports/11.ASB006.snps", col.names = F, quote = F, sep = "\t", row.names = F)
+fwrite(fam[,1], file ="QC_reports/11.ASB006.ids", col.names = F, quote = F, sep = "\t", row.names = F)
+```
+
+## 10. CLUSTER
+```{bash}
+plink --bfile chr1-22_ASB006 --cluster --out cluster_ASB006; wc -l cluster_ASB006.cluster1
+```
+
+## 11. Relatedness 
+### Prunning and pi-hat
+```{bash}
+plink --bfile chr1-22_ASB006  --maf 0.1 --indep-pairwise 50 5 0.2 --out indep_chr1-22_ASB006
+
+plink --bfile chr1-22_ASB006 --extract indep_chr1-22_ASB006.prune.in --genome --min 0.2 --out pihat_min0.2_ASB006
+```
+
+### Check how many families are there
+```{r}
+relat <- fread("pihat_min0.2_ASB006.genome")
+print("____ASB006____")
+dupls <- relat[relat$PI_HAT>=0.8,c(1:4)]
+print(paste0("Related: ", (nrow(relat)-nrow(dupls))))
+print(paste0("Duplicated: ",nrow(dupls)))
+relat <- relat[relat$PI_HAT<0.8,]
+p1 <- dupls[,1:2]
+p2 <- dupls[,3:4]
+colnames(p1) <- c("FID","IID")
+colnames(p2) <- c("FID","IID")
+exclude <- rbind(p1,p2)
+```
+
+### Calcular call-rate 
+```{bash}
+# For each pair of 'related' individuals with a pihat > 0.2, we recommend to remove the individual with the lowest call rate. 
+
+plink --bfile chr1-22_ASB006 --missing --out chr1-22_ASB006
+```
+
+### I load files with missing values to choose the duplicate to keep, as they are technical duplicates. IMPORTANT! In the case of duplicates that correspond to different clinical information, both should be deleted!
+```{r}
+write.table(exclude, file="delete_dupls_ASB006.txt", col.names =T, row.names = F, quote = F,    sep = " ")
+```
+
+#### Remove individuals
+```{bash}
+plink  --bfile chr1-22_ASB006 --remove delete_dupls_ASB006.txt --make-bed --out pihat_ASB006
+```
+
+```{r}
+qc_report[12,1] <- "Delet pihat 1" 
+
+bim <- fread("pihat_ASB006.bim")
+fam <- fread("pihat_ASB006.fam")
+
+qc_report[12,2] <- nrow(bim)
+qc_report[12,3] <- nrow(fam)
+
+fwrite(bim[,2], file = "QC_reports/12.ASB006.snps", col.names = F, quote = F, sep = "\t", row.names = F)
+fwrite(fam[,1], file = "QC_reports/12.ASB006.ids", col.names = F, quote = F, sep = "\t", row.names = F)
+```
+
+### 12. PCA
+#### KING
+```{r}
+set.seed(33)
+```
+
+```{bash}
+# mkdir PLOTS_QCs/PCA
+
+/home/stroke/Documentos/Programs/king1 -b /home/stroke/Documentos/Programs/chrbp_KGref.bed,pihat_ASB006.bed --mds --projection --cpus 4 --rplot --prefix PLOTS_QCs/PCA/pca_ASB006
+```
+
+#### Extract non european individuals
+```{r}
+rm(list=ls()[!ls()%in% c("qc_report","cohortes")])
+```
+
+```{r}
+ancestry <- fread("PLOTS_QCs/PCA/pca_ASB006_InferredAncestry.txt")
+print("ASB006")
+print(table(ancestry$Ancestry))
+not_eur <- ancestry[which(ancestry$Ancestry!="EUR"),]
+write.table(not_eur[,1:2], col.names = T, row.names = F, sep = "\t", quote = F, file="not_EUR_ASB006.txt")
+```
+
+```{bash}
+plink  --bfile pihat_ASB006 --remove not_EUR_ASB006.txt --make-bed --out eur_ASB006
+```
+
+```{r}
+qc_report[13,1] <- "European ancestry" 
+
+bim <- fread("eur_ASB006.bim")
+fam <- fread("eur_ASB006.fam")
+
+qc_report[13,2] <- nrow(bim)
+qc_report[13,3] <- nrow(fam)
+
+fwrite(bim[,2], file = "QC_reports/13.ASB006.snps", col.names = F, quote = F, sep = "\t", row.names = F)
+fwrite(fam[,1], file = "QC_reports/13.ASB006.ids", col.names = F, quote = F, sep = "\t", row.names = F)
+```
+
+### 13. Heterocigosity
+```{bash}
+plink  --bfile eur_ASB006 --mac 1 --make-bed --out eur_mac1_ASB006
+```
+
+```{r}
+qc_report[14,1] <- "No_MAC1_2"
+
+bim <- fread("eur_mac1_ASB006.bim")
+fam <- fread("eur_mac1_ASB006.fam")
+
+qc_report[14,2] <- nrow(bim)
+qc_report[14,3] <- nrow(fam)
+
+fwrite(bim[,2], file = "QC_reports/14.ASB006.snps", col.names = F, quote = F, sep = "\t", row.names = F)
+fwrite(fam[,1], file = "QC_reports/14.ASB006.ids", col.names = F, quote = F, sep = "\t", row.names = F)
+```
+
+#### Prunning
+```{bash}
+# Generate a plot of the distribution of the heterozygosity rate of your subjects. And remove individuals with a heterozygosity rate deviating more than 3 sd from the mean.
+
+# Checks for heterozygosity are performed on a set of SNPs which are not highly correlated.
+# Therefore, to generate a list of non-(highly)correlated SNPs, we exclude high inversion regions (inversion.txt [High LD regions]) and prune the SNPs using the command --indep-pairwise
+  
+# The parameters 50 5 0.2 stand respectively for: the window size, the number of SNPs to shift the window at each step, and the multiple correlation coefficient for a SNP being regressed on all other SNPs simultaneously.
+
+plink  --bfile eur_mac1_ASB006 --maf 0.1 --indep-pairwise 50 5 0.2 --out indep_eur_ASB006
+
+plink --bfile eur_mac1_ASB006 --extract indep_eur_ASB006.prune.in --het --out R_check_ASB006
+```
+
+#### Missings fot the plot
+```{bash}
+plink --bfile eur_mac1_ASB006 --missing --out eur_ASB006
+```
+
+```{r}
+imiss<- fread("eur_ASB006.imiss")
+het<-fread("R_check_ASB006.het")
+    imiss$logF_MISS = log10(imiss[,6]) 
+    het$meanHet = (het$`N(NM)` - het$`O(HOM)`)/het$`N(NM)` 
+    colors <- densCols(imiss$F_MISS,het$meanHet)
+    df<-data.table(imiss$F_MISS,het$meanHet)
+    box <-ggplot(het, aes(y=het$meanHet)) + geom_boxplot()
+    hist <-ggplot(het, aes(x=het$meanHet)) + geom_histogram()
+    gg_het<-ggplot(df, aes(x=V1, y=V2), color=colors) + 
+        geom_point(shape=1,color=colors, size=2)+
+        ylim(((mean(het$meanHet))-(15*sd(het$meanHet))), (mean(het$meanHet))+(15*sd(het$meanHet)))+
+        xlim(0,0.1)+
+        ggtitle("Missing Data and Heterozygosity Rate ASB006")+
+        xlab("Proportion of missing genotypes")+
+        ylab("Mean Heterozygosity")+
+        geom_hline(yintercept = c(mean(het$meanHet)-(2*sd(het$meanHet)),
+                                  mean(het$meanHet)+(2*sd(het$meanHet)),
+                                  mean(het$meanHet)-(3*sd(het$meanHet)),
+                                  mean(het$meanHet)+(3*sd(het$meanHet)),                  
+                                  mean(het$meanHet)-(4*sd(het$meanHet)),
+                                  mean(het$meanHet)+(4*sd(het$meanHet))), 
+                  color = c("#9999FF","#9999FF","#E69F00","#E69F00","#999999","#999999"),
+                  linetype="dashed",
+                  size=c(0.5,0.5,1,1,0.7,0.7))+
+        geom_vline(xintercept = c(0.1, 0.05), 
+                  color = c("#FF66FF","#4C0099"),
+                  linetype="dashed",
+                  size=0.3)+
+         theme(plot.title = element_text(color="black", size=14, face="bold"),
+               axis.title.x = element_text(color="#404040", size=10,face="bold"),
+               axis.title.y = element_text(color="#404040", size=10,face="bold"))
+               
+    ggsave(plot =gg_het,filename = "PLOTS_QCs/HET/ASB006_imiss-vs-het.png", dpi=300, device="png")
+    ggsave(plot =box,filename = "PLOTS_QCs/HET/ASB006_het_box.png", dpi=300, device="png")
+    ggsave(plot =hist,filename = "PLOTS_QCs/HET/ASB006_het_hist.png", dpi=300, device="png")
+```
+
+#### Exclude +-3SDs QCi
+```{r}
+het<-fread("R_check_ASB006.het")
+het$meanHet = (het$`N(NM)` - het$`O(HOM)`)/het$`N(NM)` 
+het$Het_QC <- "Pass"
+het[which(het$meanHet>(mean(het$meanHet)+(3*sd(het$meanHet)))),"Het_QC"] <- "Fail"
+het[which(het$meanHet<(mean(het$meanHet)-(3*sd(het$meanHet)))),"Het_QC"] <- "Fail"
+print("ASB006")
+print(table(het$Het_QC))
+write.table(het[which(het$Het_QC=="Fail"),1:2], file="fail_het_ASB006.txt", col.names = T, row.names = F, quote = F, sep = " ")
+```
+```{bash}
+plink --bfile eur_mac1_ASB006 --remove fail_het_ASB006.txt --mac 1 --make-bed --out hetok_ASB006
+```
+
+```{r}
+qc_report[15,1] <- "Het_3SD_and_MAC1"
+
+bim <- fread("hetok_ASB006.bim")
+fam <- fread("hetok_ASB006.fam")
+
+qc_report[15,2] <- nrow(bim)
+qc_report[15,3] <- nrow(fam)
+
+fwrite(bim[,2], file = "QC_reports/15.ASB006.snps", col.names = F, quote = F, sep = "\t", row.names = F)
+fwrite(fam[,1], file = "QC_reports/15.ASB006.ids", col.names = F, quote = F, sep = "\t", row.names = F)
+```
+
+### 15. Hardy-Weinberg equilibrium 
+El principio de Hardy-Weinberg esta ́ basado en las frecuencias ale ́licas y gent ́ıpicas de una población donde este se define en que estas frecuencias se mantengan constantes dén en generac ́n, es decir, se encuentren en equilibrio a menos que se intro- duzcan influencias perturbadoras.
+Delete SNPs which are not in Hardy-Weinberg equilibrium (HWE).
+
+##### Check the distribution of HWE p-values of all SNPs.
+```{bash}
+plink --bfile hetok_ASB006 --hardy --out hardy_ASB006
+```
+
+```{r}
+library(qqman)
+layout_matrix <- matrix(1:3, ncol = 3)
+hwe <-fread("hardy_ASB006.hwe", h=T)
+png("PLOTS_QCs/HWE/ASB006_hwe.png", height = 480, width = 480*3)
+layout(mat = layout_matrix)
+#       heights = c(1), # Heights of the two rows
+#       widths = c(1,1,1)) # Width first and second plot columns
+       qq(hwe[which(hwe$TEST=="ALL"),]$P, main="ASB006 ALL", cex.lab = 1.5,cex.axis = 0.8,cex.main = 2.5)
+       qq(hwe[which(hwe$TEST=="AFF"),]$P, main="ASB006 AFF", cex.lab = 1.5,cex.axis = 0.8,cex.main = 2.5)
+       abline(h=10, col="blue",lty=2)
+       qq(hwe[which(hwe$TEST=="UNAFF"),]$P, main="ASB006 UNAFF", cex.lab = 1.5,cex.axis = 0.8,cex.main = 2.5)
+       abline(h=6, col="blue",lty=2)
+dev.off()
+```
+
+#### Extract SNPs
+```{r}
+hwe <-fread("hardy_ASB006.hwe", h=T)
+exclusion <- hwe[which(hwe$TEST=="UNAFF" & hwe$P<1e-6),]
+exclusion2 <- hwe[which(hwe$TEST=="AFF" & hwe$P<1e-10),]
+print("ASB006")
+print(paste0("Se excluyen en controles: ",nrow(exclusion)))
+print(paste0("Se excluyen en casos: ",nrow(exclusion2)))
+exclusion_all <- rbind(as.data.frame(exclusion2[,2]),as.data.frame(exclusion[,2]))
+write.table(exclusion_all, file="exclude_hwe_ASB006.snp", col.names = F, quote = F, sep = "\t", row.names = F)
+```
+
+```{bash}
+plink --bfile hetok_ASB006 --exclude exclude_hwe_ASB006.snp --make-bed --out hwe_ASB006
+```
+
+```{r}
+qc_report[16,1] <- "HWE"
+
+bim <- fread("hwe_ASB006.bim")
+fam <- fread("hwe_ASB006.fam")
+
+qc_report[16,2] <- nrow(bim)
+qc_report[16,3] <- nrow(fam)
+
+fwrite(bim[,2], file = "QC_reports/16.ASB006.snps", col.names = F, quote = F, sep = "\t", row.names = F)
+fwrite(fam[,1], file = "QC_reports/16.ASB006.ids", col.names = F, quote = F, sep = "\t", row.names = F)
+```
+
+```{r}
+fwrite(qc_report, file="QC_reports/QC_report_ASB006.txt", col.names = T, row.names = F, quote = F, sep = "\t")
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = "/home/stroke/Documentos/Miquel_Gallardo/real_data/Dcs/MERGE/")
+```
+
+# MERGE
+## ASB003-ASB005 
+```{bash}
+#mkdir ASB003_ASB005
+#mkdir ASB003_ASB005_ASB006
+```
+
+```{bash}
+## try merge
+plink --bfile hwe_ASB003 --bmerge hwe_ASB005 --make-bed --out ASB003_ASB005/TMP_ASB003_ASB005
+```
+
+```{bash}
+## do the flip to see if merge is done
+plink --bfile hwe_ASB003 --flip ASB003_ASB005/TMP_ASB003_ASB005-merge.missnp --make-bed --out  TMP_ASB003_flip
+```
+
+```{bash}
+## try second merge
+plink --bfile TMP_ASB003_flip --bmerge hwe_ASB005 --make-bed --out ASB003_ASB005/TMP_ASB003_ASB005_flipped
+```
+
+```{bash}
+## Remove SNPs that not match both cohorts
+plink --bfile TMP_ASB003_flip --exclude ASB003_ASB005/TMP_ASB003_ASB005_flipped-merge.missnp --make-bed --out  TMP_ASB003_flip_clean
+```
+
+```{bash}
+plink --bfile hwe_ASB005 --exclude ASB003_ASB005/TMP_ASB003_ASB005_flipped-merge.missnp --make-bed --out TMP_ASB005_clean
+```
+
+```{bash}
+mv ASB003_ASB005/TMP_ASB003_ASB005_flipped-merge.missnp QC_reports/exclude_merge.snp
+```
+
+```{bash}
+## merge
+plink --bfile TMP_ASB003_flip_clean --bmerge TMP_ASB005_clean --make-bed --out ASB003_ASB005/ASB003_ASB005
+```
+
+```{bash}
+## remove temporal files 
+rm TMP_* TMP*  ASB003_ASB005/TMP*
+```
+
+## ASB003-ASB005-ASB006
+
+```{bash}
+plink --bfile ASB003_ASB005/ASB003_ASB005 --bmerge hwe_ASB006 --make-bed --out ASB003_ASB005_ASB006/ASB003_ASB005_ASB006
+```
+
+5 SNPs removed has they are trialelics after the merge. 
+```{r}
+snps_excl_merge <- fread("QC_reports/exclude_merge.snp", header = F)
+snps_excl_merge
+```
+
+## QC genotipado - MERGE
+```{r}
+cohortes <- c("ASB003_ASB005_ASB006")
+```
+
+```{r}
+qc_report <- data.frame("QC"=as.character(c(1:16)),"numSNPs_c1"=1:16,"numIDs_c1"=1:16)
+```
+
+```{r}
+qc_report[1,1] <- "No QC"
+for(i in 1:length(cohortes)){
+  bim <- fread(paste0(cohortes[i],"/",cohortes[i],".bim"))
+  fam <- fread(paste0(cohortes[i],"/",cohortes[i],".fam"))
+  if(i==1){
+    qc_report[1,2] <- nrow(bim)
+    qc_report[1,3] <- nrow(fam)
+  }
+  fwrite(bim[,2], file = paste0("QC_reports/1.",cohortes[i],".snps"), col.names = F, quote = F, sep = "\t", row.names = F)
+  fwrite(fam[,1], file = paste0("QC_reports/1.",cohortes[i],".ids"), col.names = F, quote = F, sep = "\t", row.names = F)
+  rm(bim,fam)
+}
+```
+
+### 1. SNP call rate 
+#### Generate missingness files 
+```{bash}
+declare PHENO="ASB003_ASB005_ASB006"
+
+for i in $PHENO ; do mkdir $i/QC ; plink --bfile ${i}/${i} --missing --out ${i}/QC/${i}.plink ; done 
+```
+
+```{r}
+snpmiss <- list()
+indmiss <- list()
+
+for(i in 1:length(cohortes)){
+  snpmiss[[i]] <- as.data.frame(fread(paste0(cohortes[i],"/QC/",cohortes[i],".plink.lmiss"), header = T))
+  indmiss[[i]] <- as.data.frame(fread(paste0(cohortes[i],"/QC/",cohortes[i],".plink.imiss"), header = T))
+  snp <- as.data.frame(snpmiss[[i]])
+  ind <- as.data.frame(indmiss[[i]])
+  percentil_snp <- quantile(snp$F_MISS, prob=seq(0, 1, length = 101))
+  percentil_ind<-quantile(ind$F_MISS, prob=seq(0, 1, length = 101))
+  print(cohortes[i])
+  print(percentil_snp[c(91:101)])
+  print(percentil_ind[c(91:101)])
+  
+  png(paste0("PLOTS_QCs/MISS/",i,"_",cohortes[i],"_histlmiss.png"))
+  hist(as.matrix(snp[,5]),main=paste0("Histogram SNP missingness ", cohortes[i]), xlim = c(0,1),breaks=seq(0,1,0.01))  
+  dev.off()
+  
+  gg_het<-ggplot(ind, aes(x=F_MISS, y=IID)) + 
+    geom_point(shape=1, size=2)+
+    xlim(0,max(ind$F_MISS))+
+    ggtitle(paste0("Missing Data IID ", cohortes[i]))+
+    xlab("Proportion of missing individuals")+
+    ylab("IID")+
+    geom_vline(xintercept = c(0.1, 0.05, 0.02), 
+              color = c("#FF66FF","#4C0099","#9999FF"),
+              linetype="dashed",
+              size=0.8)+
+     theme(plot.title = element_text(color="black", size=14, face="bold"),
+           axis.title.x = element_text(color="#404040", size=10,face="bold"),
+           axis.title.y = element_text(color="#404040", size=10,face="bold"))
+           
+ggsave(plot =gg_het,filename = paste0("PLOTS_QCs/MISS/",i,"_",cohortes[i],"_imiss.png"), dpi=300, device="png")
+
+png(paste0("PLOTS_QCs/MISS/",i,"_",cohortes[i],"_boxplot_imiss.png"))
+boxplot(ind$F_MISS)
+dev.off()
+}
+```
+
+```{r}
+snp_miss <- list()
+ind_miss <- list()
+for(i in 1:length(cohortes)){
+  snp_miss[[i]] <- fread(paste0(cohortes[i],"/QC/",cohortes[i],".plink.lmiss"))
+  ind_miss[[i]] <- fread(paste0(cohortes[i],"/QC/",cohortes[i],".plink.imiss"))
+}
+```
+
+#### Delete SNPs
+```{bash}
+for a in ASB003_ASB005_ASB006 ; do plink --bfile ${a}/${a} --geno 0.05 --make-bed --out ${a}/snps_${a}; done
+```
+
+```{r}
+qc_report[2,1] <- "Geno 0.05"
+for(i in 1:length(cohortes)){
+  bim <- fread(paste0(cohortes[i],"/snps_",cohortes[i],".bim"))
+  fam <- fread(paste0(cohortes[i],"/snps_",cohortes[i],".fam"))
+  if(i==1){
+    qc_report[2,2] <- nrow(bim)
+    qc_report[2,3] <- nrow(fam)
+  }
+  # if(i==2){
+  #   qc_report[2,(2+2)] <- nrow(bim)
+  #   qc_report[2,(3+2)] <- nrow(fam)
+  # }
+  fwrite(bim[,2], file = paste0("QC_reports/2.",cohortes[i],".snps"), col.names = F, quote = F, sep = "\t", row.names = F)
+  fwrite(fam[,1], file = paste0("QC_reports/2.",cohortes[i],".ids"), col.names = F, quote = F, sep = "\t", row.names = F)
+  rm(bim,fam)
+}
+```
+
+```{bash}
+for a in ASB003_ASB005_ASB006  ; do plink --bfile ${a}/snps_${a} --missing --out ${a}/QC/${a}; done
+```
+
+### Check individuals cut after removing snps
+```{bash}
+declare PHENO="ASB003_ASB005_ASB006"
+
+for i in $PHENO ; do plink --bfile ${i}/snps_${i} --missing --out ${i}/QC/snps_${i} ; done 
+```
+
+```{r}
+snpmiss <- list()
+indmiss <- list()
+
+for(i in 1:length(cohortes)){
+  snpmiss[[i]] <- as.data.frame(fread(paste0(cohortes[i],"/QC/snps_",cohortes[i],".lmiss"), header = T))
+  indmiss[[i]] <- as.data.frame(fread(paste0(cohortes[i],"/QC/snps_",cohortes[i],".imiss"), header = T))
+  snp <- as.data.frame(snpmiss[[i]])
+  ind <- as.data.frame(indmiss[[i]])
+  percentil_snp <- quantile(snp$F_MISS, prob=seq(0, 1, length = 101))
+  percentil_ind<-quantile(ind$F_MISS, prob=seq(0, 1, length = 101))
+  print(cohortes[i])
+  print(percentil_snp[c(91:101)])
+  print(percentil_ind[c(91:101)])
+  
+  png(paste0("PLOTS_QCs/MISS/",i,"_",cohortes[i],"_histlmiss_aftergeno0.05.png"))
+  hist(as.matrix(snp[,5]),main=paste0("Histogram SNP missingness ", cohortes[i]), xlim = c(0,1),breaks=seq(0,1,0.01))  
+  dev.off()
+  
+  gg_het<-ggplot(ind, aes(x=F_MISS, y=IID)) + 
+    geom_point(shape=1, size=2)+
+    xlim(0,max(ind$F_MISS))+
+    ggtitle(paste0("Missing Data IID ", cohortes[i]))+
+    xlab("Proportion of missing individuals")+
+    ylab("IID")+
+    geom_vline(xintercept = c(0.1, 0.05, 0.02), 
+              color = c("#FF66FF","#4C0099","#9999FF"),
+              linetype="dashed",
+              size=0.8)+
+     theme(plot.title = element_text(color="black", size=14, face="bold"),
+           axis.title.x = element_text(color="#404040", size=10,face="bold"),
+           axis.title.y = element_text(color="#404040", size=10,face="bold"))
+           
+ggsave(plot =gg_het,filename = paste0("PLOTS_QCs/MISS/",i,"_",cohortes[i],"_imiss_aftergeno0.05.png"), dpi=300, device="png")
+
+png(paste0("PLOTS_QCs/MISS/",i,"_",cohortes[i],"_boxplot_imiss_aftergeno0.05.png"))
+boxplot(ind$F_MISS)
+dev.off()
+}
+```
+
+### 2. Call rate differences
+Better to do after imputation in this case 
+
+### 3. Delete individuals with missingness 
+```{bash}
+for a in ASB003_ASB005_ASB006 ;  do plink --bfile ${a}/snps_${a} --mind 0.05 --make-bed --out ${a}/missings_${a}; done
+```
+##### Report QCs
+```{r}
+qc_report[3,1] <- "Missings ind 0.05"
+for(i in 1:length(cohortes)){
+  bim <- fread(paste0(cohortes[i],"/missings_",cohortes[i],".bim"))
+  fam <- fread(paste0(cohortes[i],"/missings_",cohortes[i],".fam"))
+  if(i==1){
+    qc_report[3,2] <- nrow(bim)
+    qc_report[3,3] <- nrow(fam)
+  }
+  # if(i==2){
+  #   qc_report[3,(2+2)] <- nrow(bim)
+  #   qc_report[3,(3+2)] <- nrow(fam)
+  # }
+  fwrite(bim[,2], file = paste0("QC_reports/3.",cohortes[i],".snps"), col.names = F, quote = F, sep = "\t", row.names = F)
+  fwrite(fam[,1], file = paste0("QC_reports/3.",cohortes[i],".ids"), col.names = F, quote = F, sep = "\t", row.names = F)
+  rm(bim,fam)
+}
+```
+
+### 4.  Remove weird snps
+#### Extract non bialelics
+```{r}
+# Load .bim
+missings_bim <- list()
+
+for (i in 1:length(cohortes)) {
+  missings_bim[[i]] <- fread(paste0(cohortes[i],"/missings_",cohortes[i],".bim"))
+}
+names(missings_bim) <-cohortes
+# Seleccions de indels
+indels<-list()
+alelos <- c("A","C","T","G")
+for (i in c(1:length(missings_bim))){ 
+indels[[i]]<-missings_bim[[i]][-which((missings_bim[[i]]$V5%in% alelos)&(missings_bim[[i]]$V6%in% alelos)),]
+}
+names(indels)<-cohortes
+```
+#### Extract ambiguous
+```{r}
+ambiguos<-list()
+for (i in c(1:length(cohortes))){
+  # Retiro aquellos SNPs que caen por indels
+  missings_bim[[i]] <- missings_bim[[i]][!missings_bim[[i]]$V2%in% indels[[i]]$V2,]
+  # Filtro ambiguos:
+ambiguos[[i]]<-data.table(missings_bim[[i]][which((missings_bim[[i]]$V5=="A" & missings_bim[[i]]$V6=="T")|(missings_bim[[i]]$V5=="T" & missings_bim[[i]]$V6=="A")|(missings_bim[[i]]$V5=="G" & missings_bim[[i]]$V6=="C")|(missings_bim[[i]]$V5=="C" & missings_bim[[i]]$V6=="G")),])
+}
+names(ambiguos) <- cohortes
+```
+
+#### Extract snps not in 1:23 
+```{r}
+chrs_raros<-list()
+for (i in c(1:length(cohortes))){
+  # Retiro aquellos SNPs que caen por ambiguos
+  missings_bim[[i]] <- missings_bim[[i]][!missings_bim[[i]]$V2%in% ambiguos[[i]]$V2,]
+  # Filtro cromosomas:
+  chrs_raros[[i]]<-missings_bim[[i]][which(!missings_bim[[i]]$V1%in% 1:23),]
+}
+names(chrs_raros) <- cohortes
+```
+#### Joint lists and extract snps
+```{r}
+exclusion <- list()
+for (i in 1:length(cohortes)){ 
+  exclusion[[i]] <- rbind(as.data.frame(indels[[i]]),as.data.frame(ambiguos[[i]]), as.data.frame(chrs_raros[[i]]))
+  write.table(exclusion[[i]][,2], file=paste0(cohortes[i],"/Indels-ambig-chrs2426_",cohortes[i],".snp"), col.names = F, quote = F, sep = "\t", row.names = F)
+}
+rm(missings_bim)
+
+```
+
+##### Report QCs
+```{r}
+qc_report[4,1] <- "Bialelicos_indels"
+for(i in 1:length(cohortes)){
+  bim <- fread(paste0(cohortes[i],"/missings_",cohortes[i],".bim"))
+  fam <- fread(paste0(cohortes[i],"/missings_",cohortes[i],".fam"))
+  if(i==1){
+    qc_report[4,2] <- nrow(bim)-nrow(indels[[i]]) # Cambio a restar los snps que se caen
+    qc_report[4,3] <- nrow(fam)
+  }
+  if(i==2){
+    qc_report[4,(2+2)] <- nrow(bim)-nrow(indels[[i]]) # Cambio a restar los snps que se caen
+    qc_report[4,(3+2)] <- nrow(fam)
+  }
+  fwrite(bim[,2], file = paste0("QC_reports/4.",cohortes[i],".snps"), col.names = F, quote = F, sep = "\t", row.names = F)
+  fwrite(fam[,1], file = paste0("QC_reports/4.",cohortes[i],".ids"), col.names = F, quote = F, sep = "\t", row.names = F)
+  rm(bim,fam)
+}
+```
+
+```{r}
+qc_report[5,1] <- "No_ambiguos"
+for(i in 1:length(cohortes)){
+  bim <- fread(paste0(cohortes[i],"/missings_",cohortes[i],".bim"))
+  fam <- fread(paste0(cohortes[i],"/missings_",cohortes[i],".fam"))
+  if(i==1){
+    qc_report[5,2] <- nrow(bim)-nrow(indels[[i]])-nrow(ambiguos[[i]]) 
+    qc_report[5,3] <- nrow(fam)
+  }
+  # if(i==2){
+  #   qc_report[5,(2+2)] <- nrow(bim)-nrow(indels[[i]])-nrow(ambiguos[[i]]) # Cambio a restar los snps que se ca4en
+  #   qc_report[5,(3+2)] <- nrow(fam)
+  # }
+  fwrite(bim[,2], file = paste0("QC_reports/5.",cohortes[i],".snps"), col.names = F, quote = F, sep = "\t", row.names = F)
+  fwrite(fam[,1], file = paste0("QC_reports/5.",cohortes[i],".ids"), col.names = F, quote = F, sep = "\t", row.names = F)
+  rm(bim,fam)
+}
+```
+
+```{r}
+qc_report[6,1] <- "CHR1-23"
+for(i in 1:length(cohortes)){
+  bim <- fread(paste0(cohortes[i],"/missings_",cohortes[i],".bim"))
+  fam <- fread(paste0(cohortes[i],"/missings_",cohortes[i],".fam"))
+  if(i==1){
+    qc_report[6,2] <- nrow(bim)-nrow(indels[[i]])-nrow(ambiguos[[i]])-nrow(chrs_raros[[i]]) 
+    qc_report[6,3] <- nrow(fam)
+  }
+  # if(i==2){
+  #   qc_report[6,(2+2)] <- nrow(bim)-nrow(indels[[i]])-nrow(ambiguos[[i]])-nrow(chrs_raros[[i]]) 
+  #   qc_report[6,(3+2)] <- nrow(fam)
+  # }
+  fwrite(bim[,2], file = paste0("QC_reports/6.",cohortes[i],".snps"), col.names = F, quote = F, sep = "\t", row.names = F)
+  fwrite(fam[,1], file = paste0("QC_reports/6.",cohortes[i],".ids"), col.names = F, quote = F, sep = "\t", row.names = F)
+  rm(bim,fam)
+}
+rm(ambiguos, indels, chrs_raros, exclusion)
+
+```
+
+```{bash}
+for a in ASB003_ASB005_ASB006 ;  do plink --bfile ${a}/missings_${a} --exclude ${a}/Indels-ambig-chrs2426_${a}.snp --make-bed --out ${a}/clean_${a}; done
+```
+
+### 5. Duplicates
+#### SNP
+##### Look if there are duplicate snps
+```{r}
+# Load .bim
+clean <- list()
+callrate <- list()
+clean_callrate <- list()
+snp_duplicados<-list()
+for(i in 1:length(cohortes)){
+  clean[[i]] <- fread(paste0(cohortes[i],"/clean_",cohortes[i],".bim"))
+  # Add CBP column
+  clean[[i]]$CHRBP <- paste0(clean[[i]]$V1,":",clean[[i]]$V4)
+  callrate[[i]] <- fread(paste0(cohortes[i],"/QC/",cohortes[i],".lmiss"))
+  # Add call rate info
+  callrate[[i]] <- callrate[[i]][which(callrate[[i]]$SNP%in% clean[[i]]$V2),]
+  clean_callrate[[i]] <- merge(as.data.frame(clean[[i]]), as.data.frame(callrate[[i]]), by.x="V2", by.y="SNP")
+  snp_duplicados[[i]]<-clean_callrate[[i]][duplicated(clean_callrate[[i]]$CHRBP),]
+  snp_duplicados[[i]]<-snp_duplicados[[i]][snp_duplicados[[i]]$V1<23,]
+}
+names(clean) <- cohortes
+names(callrate) <- cohortes
+names(clean_callrate) <- cohortes
+names(snp_duplicados) <- cohortes
+```
+
+#### Select SNP to remove
+```{r}
+base_duplicados<-list()
+clean_missings<-base_duplicados
+for (i in 1:length(cohortes)){ 
+base_duplicados[[i]]<-clean_callrate[[i]][clean_callrate[[i]]$CHRBP %in% snp_duplicados[[i]]$CHRBP,]
+
+clean_missings[[i]]<-base_duplicados[[i]] %>%
+  dplyr::group_by(CHRBP) %>%
+  dplyr::arrange(F_MISS) %>%
+  dplyr::slice(1) %>%
+  ungroup()
+}
+names(base_duplicados) <- cohortes
+names(clean_missings) <- cohortes
+
+delete<-list()
+delete_id<-list()
+for (i in 1:length(clean_missings)){ 
+delete[[i]]<-base_duplicados[[i]][!(base_duplicados[[i]]$V2 %in% clean_missings[[i]]$V2),]
+delete_id[[i]]<-delete[[i]][,"V2"]
+
+write.table(delete_id[[i]],file = paste0(cohortes[i],"/delete_id_",cohortes[i],".snp"),col.names =F, row.names = F, quote = F, sep=" ")
+}
+names(delete) <- cohortes
+names(delete_id) <- cohortes
+```
+
+#### Check there are no remaining duplicates
+```{r}
+dupl_clean<-list()
+for (i in 1:length(cohortes)){ 
+dupl_clean[[i]]<-base_duplicados[[i]][!base_duplicados[[i]]$V2 %in% delete[[i]]$V2,]
+}
+names(dupl_clean) <- cohortes
+
+# Ver cuántos duplicados hay ahora
+base_duplicados_clean<-list()
+for (i in c(1:length(dupl_clean))){ 
+base_duplicados_clean[[i]]<-dupl_clean[[i]][duplicated(dupl_clean[[i]]$CHRBP),]
+}
+names(base_duplicados_clean) <- cohortes
+
+```
+
+```{r}
+qc_report[7,1] <- "No_duplicados"
+for(i in 1:length(cohortes)){
+  bim <- fread(paste0(cohortes[i],"/clean_",cohortes[i],".bim"))
+  fam <- fread(paste0(cohortes[i],"/clean_",cohortes[i],".fam"))
+  if(i==1){
+    qc_report[7,2] <- nrow(bim)-nrow(delete[[i]]) 
+    qc_report[7,3] <- nrow(fam)
+  }
+  # if(i==2){
+  #   qc_report[7,(2+2)] <- nrow(bim)-nrow(delete[[i]])
+  #   qc_report[7,(3+2)] <- nrow(fam)
+  # }
+  fwrite(bim[,2], file = paste0("QC_reports/7.",cohortes[i],".snps"), col.names = F, quote = F, sep = "\t", row.names = F)
+  fwrite(fam[,1], file = paste0("QC_reports/7.",cohortes[i],".ids"), col.names = F, quote = F, sep = "\t", row.names = F)
+  rm(bim,fam)
+}
+```
+
+##### Remove duplicates  
+```{bash}
+for a in ASB003_ASB005_ASB006;  do plink --bfile ${a}/clean_${a} --exclude ${a}/delete_id_${a}.snp --make-bed --out ${a}/nodupl_${a}; done
+```
+##### Check if there are duplicates
+
+```{r}
+check <- list()
+no_dupl <- list()
+for(i in 1:length(cohortes)){
+  no_dupl[[i]] <- fread(paste0(cohortes[i],"/nodupl_",cohortes[i],".bim"))
+  check[[i]] <- no_dupl[[i]][duplicated(no_dupl[[i]]$V2),]
+}
+names(check) <- cohortes
+names(no_dupl) <- cohortes
+```
+
+### 6. Rename to CHR:POS
+```{bash}
+for a in ASB003_ASB005_ASB006 ;  do awk '{print $2,$1":"$4}' ${a}/nodupl_${a}.bim > ${a}/nodupl_${a}_toUpdate.txt; done
+
+for a in ASB003_ASB005_ASB006 ;  do plink --bfile ${a}/nodupl_${a} --update-name ${a}/nodupl_${a}_toUpdate.txt 2 1 --make-bed --out ${a}/nodupl_${a}_updated; done
+```
+#### Generate call rate
+```{bash}
+for a in ASB003_ASB005_ASB006; do plink --bfile ${a}/nodupl_${a}_updated --missing --out ${a}/missings_${a}_updated; done
+```
+#### Remove dupls
+```{bash}
+for a in ASB003_ASB005_ASB006; do plink2 --bfile ${a}/nodupl_${a}_updated --rm-dup exclude-mismatch --make-bed --out ${a}/nodupl_${a}; done
+```
+#### Check again if there are duplicates
+```{r}
+updated <- list()
+check <- list()
+for(i in 1:length(cohortes)){
+  updated[[i]] <- fread(paste0(cohortes[i],"/nodupl_",cohortes[i],".bim"))
+  check[[i]] <- updated[[i]][duplicated(updated[[i]]$V2),]
+}
+names(updated) <- cohortes
+names(check) <- cohortes
+```
+
+```{r}
+qc_report[8,1] <- "No_dupl_chrbp"
+for(i in 1:length(cohortes)){
+  bim <- fread(paste0(cohortes[i],"/nodupl_",cohortes[i],".bim"))
+  fam <- fread(paste0(cohortes[i],"/nodupl_",cohortes[i],".fam"))
+  if(i==1){
+    qc_report[8,2] <- nrow(bim)
+    qc_report[8,3] <- nrow(fam)
+  }
+  # if(i==2){
+  #   qc_report[8,(2+2)] <- nrow(bim)
+  #   qc_report[8,(3+2)] <- nrow(fam)
+  # }
+  fwrite(bim[,2], file = paste0("QC_reports/8.",cohortes[i],".snps"), col.names = F, quote = F, sep = "\t", row.names = F)
+  fwrite(fam[,1], file = paste0("QC_reports/8.",cohortes[i],".ids"), col.names = F, quote = F, sep = "\t", row.names = F)
+  rm(bim,fam)
+}
+```
+
+### 7.  Remove monomorfic snps 
+```{bash}
+for a in ASB003_ASB005_ASB006;  do plink --bfile ${a}/nodupl_${a}_updated --mac 1  --make-bed --out ${a}/nodupl_mac1_${a}_updated --allow-no-sex; done
+```
+
+```{r}
+qc_report[9,1] <- "No_MAC1"
+for(i in 1:length(cohortes)){
+  bim <- fread(paste0(cohortes[i],"/nodupl_mac1_",cohortes[i],"_updated.bim"))
+  fam <- fread(paste0(cohortes[i],"/nodupl_mac1_",cohortes[i],"_updated.fam"))
+  if(i==1){
+    qc_report[9,2] <- nrow(bim)
+    qc_report[9,3] <- nrow(fam)
+  }
+  # if(i==2){
+  #   qc_report[9,(2+2)] <- nrow(bim)
+  #   qc_report[9,(3+2)] <- nrow(fam)
+  # }
+  fwrite(bim[,2], file = paste0("QC_reports/9.",cohortes[i],".snps"), col.names = F, quote = F, sep = "\t", row.names = F)
+  fwrite(fam[,1], file = paste0("QC_reports/9.",cohortes[i],".ids"), col.names = F, quote = F, sep = "\t", row.names = F)
+  rm(bim,fam)
+}
+```
+
+### 8. Sex 
+```{r}
+# for (i in 1:length(cohortes)) {
+#   mt <- fread(paste0("../phenotype/",cohortes[i],"-mastertable.txt"))
+#   fam <-fread(paste0(cohortes[i],"/nodupl_mac1_",cohortes[i],"_updated.fam"))
+#   table(fam$V1==mt$GWAS_ID)
+#   fam$V5 <- sub(mt$Gender, pattern="Female", replacement="2")
+#   fam$V5 <- sub(fam$V5, pattern="Male", replacement="1")
+#   fam[which(!fam$V5%in% c("1","2")),"V5"] <- "0"
+#   fam$V6 <- sub(mt$ISQ_stroke, pattern="Yes", replacement="1")
+#   fam$V6 <- sub(fam$V6, pattern="No", replacement="2")
+#   fam$V6 <- sub(fam$V6, pattern="AIT", replacement="0")
+#   fwrite(fam, file=paste0(cohortes[i],"/nodupl_mac1_",cohortes[i],"_updated.fam"), col.names = F, quote = F, sep = " ", row.names = F)
+# }
+```
+
+```{r}
+qc_report[10,1] <- "No_sex_discrepancy"
+for(i in 1:length(cohortes)){
+  # bim <- fread(paste0(cohortes[i],"/sex_",cohortes[i],".bim"))
+  # fam <- fread(paste0(cohortes[i],"/sex_",cohortes[i],".fam"))
+  if(i==1){
+    qc_report[10,2] <- NA
+    qc_report[10,3] <- NA
+  }
+  # if(i==2){
+  #   qc_report[10,(2+2)] <- nrow(bim)
+  #   qc_report[10,(3+2)] <- nrow(fam)
+  # }
+  # fwrite(bim[,2], file = paste0("QC_reports/10.",cohortes[i],".snps"), col.names = F, quote = F, sep = "\t", row.names = F)
+  # fwrite(fam[,1], file = paste0("QC_reports/10.",cohortes[i],".ids"), col.names = F, quote = F, sep = "\t", row.names = F)
+  # rm(bim,fam)
+}
+```
+
+### 9. Remove chr 23 
+#### Computing the MAF distribution.
+```{bash}
+#########################
+#####  use the 'case-control' modifier to write a case/control
+#####  phenotype-stratified report to plink.frq.cc.
+######################
+for a in ASB003_ASB005_ASB006 ; do plink --bfile ${a}/nodupl_mac1_${a}_updated --freq --out ${a}/QC/nodupl_mac1_${a}_updated; done
+for a in ASB003_ASB005_ASB006 ; do plink --bfile ${a}/nodupl_mac1_${a}_updated --freq counts --out ${a}/QC/nodupl_mac1_${a}_updated; done
+```
+
+#### Remove SNPs in chr X.
+```{bash}
+for a in ASB003_ASB005_ASB006 ; do plink2 --bfile ${a}/nodupl_mac1_${a}_updated --chr 1-22 --make-bed --out ${a}/chr1-22_${a} ; done
+```
+
+```{r}
+qc_report[11,1] <- "CHR1-22"
+for(i in 1:length(cohortes)){
+  bim <- fread(paste0(cohortes[i],"/chr1-22_",cohortes[i],".bim"))
+  fam <- fread(paste0(cohortes[i],"/chr1-22_",cohortes[i],".fam"))
+  if(i==1){
+    qc_report[11,2] <- nrow(bim)
+    qc_report[11,3] <- nrow(fam)
+  }
+  # if(i==2){
+  #   qc_report[11,(2+2)] <- nrow(bim)
+  #   qc_report[11,(3+2)] <- nrow(fam)
+  # }
+  fwrite(bim[,2], file = paste0("QC_reports/11.",cohortes[i],".snps"), col.names = F, quote = F, sep = "\t", row.names = F)
+  fwrite(fam[,1], file = paste0("QC_reports/11.",cohortes[i],".ids"), col.names = F, quote = F, sep = "\t", row.names = F)
+  rm(bim,fam)
+}
+```
+
+### 10. CLUSTER
+```{bash}
+for a in ASB003_ASB005_ASB006 ; do plink --bfile ${a}/chr1-22_${a} --cluster --out ${a}/QC/cluster_${a}; wc -l ${a}/QC/cluster_${a}.cluster1; done 
+```
+
+### 11. Relatedness 
+#### Prunning and pi-hat
+```{bash}
+for a in ASB003_ASB005_ASB006; do plink --bfile ${a}/chr1-22_${a}  --maf 0.1 --indep-pairwise 50 5 0.2 --out ${a}/indep_chr1-22_${a}; done
+
+for a in ASB003_ASB005_ASB006; do plink --bfile ${a}/chr1-22_${a} --extract ${a}/indep_chr1-22_${a}.prune.in --genome --min 0.2 --out ${a}/QC/pihat_min0.2_${a}; done
+```
+#### Check how many families there are
+```{r}
+relat <- list()
+dupls <- list()
+exclude <- list()
+for(i in 1:length(cohortes)){
+  relat[[i]] <- fread(paste0(cohortes[i],"/QC/pihat_min0.2_",cohortes[i],".genome"))
+  print(paste0("____",cohortes[i],"____"))
+  dupls[[i]] <- relat[[i]][relat[[i]]$PI_HAT>=0.8,c(1:4)]
+  print(paste0("Related: ", (nrow(relat[[i]])-nrow(dupls[[i]]))))
+  print(paste0("Duplicated: ",nrow(dupls[[i]])))
+  relat[[i]] <- relat[[i]][relat[[i]]$PI_HAT<0.8,]
+  p1 <- dupls[[i]][,1:2]
+  p2 <- dupls[[i]][,3:4]
+  colnames(p1) <- c("FID","IID")
+  colnames(p2) <- c("FID","IID")
+  exclude[[i]] <- rbind(p1,p2)
+}
+names(relat) <- cohortes
+names(dupls) <- cohortes
+```
+
+#### Calcular call-rate 
+```{bash}
+# For each pair of 'related' individuals with a pihat > 0.2, we recommend to remove the individual with the lowest call rate. 
+
+for a in ASB003_ASB005_ASB006; do plink --bfile ${a}/chr1-22_${a} --missing --out ${a}/QC/chr1-22_${a}; done
+```
+
+```{r}
+for(i in 1:length(cohortes)){
+   write.table(exclude[[i]], file=paste0(cohortes[i],"/QC/delete_dupls_",cohortes[i],".txt"), col.names = T, row.names = F, quote = F, sep = " ")
+   write.table(relat[[i]], file=paste0(cohortes[i],"/QC/relatives",cohortes[i],".txt"), col.names = T, row.names = F, quote = F, sep = " ")
+}
+```
+
+#### Remove individuals 
+```{bash}
+for a in ASB003_ASB005_ASB006; do plink  --bfile ${a}/chr1-22_${a} --remove ${a}/QC/delete_dupls_${a}.txt --make-bed --out ${a}/pihat_${a}; done
+```
+
+```{r}
+qc_report[12,1] <- "Delet pihat 1" 
+for(i in 1:length(cohortes)){
+  bim <- fread(paste0(cohortes[i],"/pihat_",cohortes[i],".bim"))
+  fam <- fread(paste0(cohortes[i],"/pihat_",cohortes[i],".fam"))
+  if(i==1){
+    qc_report[12,2] <- nrow(bim)
+    qc_report[12,3] <- nrow(fam)
+  }
+  fwrite(bim[,2], file = paste0("QC_reports/12.",cohortes[i],".snps"), col.names = F, quote = F, sep = "\t", row.names = F)
+  fwrite(fam[,1], file = paste0("QC_reports/12.",cohortes[i],".ids"), col.names = F, quote = F, sep = "\t", row.names = F)
+  rm(bim,fam)
+}
+```
+
+### 12. PCA
+#### KING
+```{r}
+set.seed(33)
+```
+
+```{bash}
+for a in ASB003_ASB005_ASB006; do /home/stroke/Documentos/Programs/king1 -b /home/stroke/Documentos/Programs/chrbp_KGref.bed,ASB003_ASB005_ASB006/pihat_ASB003_ASB005_ASB006.bed --mds --projection --cpus 4 --rplot --prefix PLOTS_QCs/PCA/pca_${a}; done 
+```
+
+#### Extract non european individuals
+```{r}
+rm(list=ls()[!ls()%in% c("qc_report","cohortes")])
+```
+
+```{r}
+ancestry <- list()
+not_eur <- list()
+for(i in 1:length(cohortes)){
+  ancestry[[i]] <- fread(paste0("PLOTS_QCs/PCA/pca_", cohortes[i],"_InferredAncestry.txt"))
+  print(cohortes[i])
+  print(table(ancestry[[i]]$Ancestry))
+  not_eur[[i]] <- ancestry[[i]][which(ancestry[[i]]$Pr_1st<0.9),]
+  write.table(not_eur[[i]][,1:2], col.names = T, row.names = F, sep = "\t", quote = F, file=paste0(cohortes[i],"/not_EUR_", cohortes[i],".txt"))
+}
+names(not_eur) <- cohortes
+```
+
+#### Extract not european individuals
+```{bash}
+for a in ASB003_ASB005_ASB006; do plink  --bfile ${a}/pihat_${a} --remove ${a}/not_EUR_${a}.txt --make-bed --out ${a}/eur_${a}; done
+```
+
+```{r}
+qc_report[13,1] <- "European ancestry" 
+for(i in 1:length(cohortes)){
+  bim <- fread(paste0(cohortes[i],"/eur_",cohortes[i],".bim"))
+  fam <- fread(paste0(cohortes[i],"/eur_",cohortes[i],".fam"))
+  if(i==1){
+    qc_report[13,2] <- nrow(bim)
+    qc_report[13,3] <- nrow(fam)
+  }
+  fwrite(bim[,2], file = paste0("QC_reports/13.",cohortes[i],".snps"), col.names = F, quote = F, sep = "\t", row.names = F)
+  fwrite(fam[,1], file = paste0("QC_reports/13.",cohortes[i],".ids"), col.names = F, quote = F, sep = "\t", row.names = F)
+  rm(bim,fam)
+}
+```
+
+### 13. Heterocigosidad 
+```{bash}
+for a in ASB003_ASB005_ASB006; do plink  --bfile ${a}/eur_${a} --mac 1 --make-bed --out ${a}/eur_mac1_${a}; done
+```
+
+```{r}
+qc_report[14,1] <- "No_MAC1_2"
+for(i in 1:length(cohortes)){
+  bim <- fread(paste0(cohortes[i],"/eur_mac1_",cohortes[i],".bim"))
+  fam <- fread(paste0(cohortes[i],"/eur_mac1_",cohortes[i],".fam"))
+  if(i==1){
+    qc_report[14,2] <- nrow(bim)
+    qc_report[14,3] <- nrow(fam)
+  }
+  fwrite(bim[,2], file = paste0("QC_reports/14.",cohortes[i],".snps"), col.names = F, quote = F, sep = "\t", row.names = F)
+  fwrite(fam[,1], file = paste0("QC_reports/14.",cohortes[i],".ids"), col.names = F, quote = F, sep = "\t", row.names = F)
+  rm(bim,fam)
+}
+```
+
+#### List of snp to exculde
+##### High LD
+#### Prunning
+```{bash}
+# Generate a plot of the distribution of the heterozygosity rate of your subjects. And remove individuals with a heterozygosity rate deviating more than 3 sd from the mean.
+
+# Checks for heterozygosity are performed on a set of SNPs which are not highly correlated.
+# Therefore, to generate a list of non-(highly)correlated SNPs, we exclude high inversion regions (inversion.txt [High LD regions]) and prune the SNPs using the command --indep-pairwise
+  
+# The parameters 50 5 0.2 stand respectively for: the window size, the number of SNPs to shift the window at each step, and the multiple correlation coefficient for a SNP being regressed on all other SNPs simultaneously.
+
+for a in ASB003_ASB005_ASB006; do plink  --bfile ${a}/eur_mac1_${a} --maf 0.1 --indep-pairwise 50 5 0.2 --out ${a}/QC/indep_eur_${a}; done
+
+for a in ASB003_ASB005_ASB006; do plink --bfile ${a}/eur_mac1_${a} --extract ${a}/QC/indep_eur_${a}.prune.in --het --out ${a}/QC/R_check_${a}; done
+```
+#### Missings for the plot
+```{bash}
+for a in ASB003_ASB005_ASB006; do plink --bfile ${a}/eur_mac1_${a} --missing --out ${a}/QC/eur_${a}; done  
+```
+#### Plot 
+```{bash}
+mkdir PLOTS_QCs/HET
+```
+
+```{r}
+for( i in 1:length(cohortes)){
+  imiss<- fread(paste0(cohortes[i],"/QC/eur_", cohortes[i],".imiss"))
+  het<-fread(paste0(cohortes[i],"/QC/R_check_", cohortes[i],".het"))
+      imiss$logF_MISS = log10(imiss[,6]) 
+      het$meanHet = (het$`N(NM)` - het$`O(HOM)`)/het$`N(NM)` 
+      colors <- densCols(imiss$F_MISS,het$meanHet)
+      df<-data.table(imiss$F_MISS,het$meanHet)
+      box <-ggplot(het, aes(y=het$meanHet)) + geom_boxplot()
+      hist <-ggplot(het, aes(x=het$meanHet)) + geom_histogram()
+      gg_het<-ggplot(df, aes(x=V1, y=V2), color=colors) + 
+          geom_point(shape=1,color=colors, size=2)+
+          ylim(((mean(het$meanHet))-(15*sd(het$meanHet))), (mean(het$meanHet))+(15*sd(het$meanHet)))+
+          xlim(0,0.1)+
+          ggtitle(paste0("Missing Data and Heterozygosity Rate ", cohortes[i]))+
+          xlab("Proportion of missing genotypes")+
+          ylab("Mean Heterozygosity")+
+          geom_hline(yintercept = c(mean(het$meanHet)-(2*sd(het$meanHet)),
+                                    mean(het$meanHet)+(2*sd(het$meanHet)),
+                                    mean(het$meanHet)-(3*sd(het$meanHet)),
+                                    mean(het$meanHet)+(3*sd(het$meanHet)),                  
+                                    mean(het$meanHet)-(4*sd(het$meanHet)),
+                                    mean(het$meanHet)+(4*sd(het$meanHet))), 
+                    color = c("#9999FF","#9999FF","#E69F00","#E69F00","#999999","#999999"),
+                    linetype="dashed",
+                    size=c(0.5,0.5,1,1,0.7,0.7))+
+          geom_vline(xintercept = c(0.1, 0.05), 
+                    color = c("#FF66FF","#4C0099"),
+                    linetype="dashed",
+                    size=0.3)+
+           theme(plot.title = element_text(color="black", size=14, face="bold"),
+                 axis.title.x = element_text(color="#404040", size=10,face="bold"),
+                 axis.title.y = element_text(color="#404040", size=10,face="bold"))
+                 
+      ggsave(plot =gg_het,filename = paste0("PLOTS_QCs/HET/", cohortes[i],"_imiss-vs-het.png"), dpi=300, device="png")
+      ggsave(plot =box,filename = paste0("PLOTS_QCs/HET/", cohortes[i],"_het_box.png"), dpi=300, device="png")
+      ggsave(plot =hist,filename = paste0("PLOTS_QCs/HET/", cohortes[i],"_het_hist.png"), dpi=300, device="png")
+}
+
+```
+
+```{r}
+# set.seed(33)
+# for(i in 1:length(cohortes)){
+#   het<-fread(paste0(cohortes[i],"/QC/R_check_", cohortes[i],".het"))
+#   het$meanHet = (het$`N(NM)` - het$`O(HOM)`)/het$`N(NM)` 
+#   print(cohortes[i])
+#   print(symmetry.test(het$meanHet))
+# }
+```
+
+#### Exclude +-3SDs QCi
+```{r}
+for( i in 1:(length(cohortes))){
+    het<-fread(paste0(cohortes[i],"/QC/R_check_", cohortes[i],".het"))
+    het$meanHet = (het$`N(NM)` - het$`O(HOM)`)/het$`N(NM)` 
+    het$Het_QC <- "Pass"
+    het[which(het$meanHet>(mean(het$meanHet)+(3*sd(het$meanHet)))),"Het_QC"] <- "Fail"
+    het[which(het$meanHet<(mean(het$meanHet)-(3*sd(het$meanHet)))),"Het_QC"] <- "Fail"
+    print(cohortes[i])
+    print(table(het$Het_QC))
+    write.table(het[which(het$Het_QC=="Fail"),1:2], file=paste0( cohortes[i],"/QC/fail_het_", cohortes[i],".txt"), col.names = T, row.names = F, quote = F, sep = " ")
+}
+```
+
+```{bash}
+for a in ASB003_ASB005_ASB006 ; do plink --bfile ${a}/eur_mac1_${a} --remove ${a}/QC/fail_het_${a}.txt --mac 1 --make-bed --out ${a}/hetok_${a} ; done
+```
+
+```{r}
+qc_report[15,1] <- "Het_3SD_and_MAC1"
+for(i in 1:length(cohortes)){
+  bim <- fread(paste0(cohortes[i],"/hetok_",cohortes[i],".bim"))
+  fam <- fread(paste0(cohortes[i],"/hetok_",cohortes[i],".fam"))
+  if(i==1){
+    qc_report[15,2] <- nrow(bim)
+    qc_report[15,3] <- nrow(fam)
+  }
+  if(i==2){
+    qc_report[15,(2+2)] <- nrow(bim)
+    qc_report[15,(3+2)] <- nrow(fam)
+  }
+  fwrite(bim[,2], file = paste0("QC_reports/15.",cohortes[i],".snps"), col.names = F, quote = F, sep = "\t", row.names = F)
+  fwrite(fam[,1], file = paste0("QC_reports/15.",cohortes[i],".ids"), col.names = F, quote = F, sep = "\t", row.names = F)
+  rm(bim,fam)
+}
+```
+
+### 15. Hardy-Weinberg equilibrium 
+
+##### Check the distribution of HWE p-values of all SNPs.
+```{bash}
+for a in ASB003_ASB005_ASB006; do plink --bfile ${a}/hetok_${a} --hardy --out ${a}/QC/hardy_${a}; done
+```
+
+##### QQ plot
+```{bash}
+mkdir PLOTS_QCs/HWE
+```
+
+```{r}
+library(qqman)
+
+layout_matrix <- matrix(1:3, ncol = 3)
+for(i in 1:length(cohortes)){
+  hwe <-fread(paste0(cohortes[i],"/QC/hardy_", cohortes[i],".hwe"), h=T)
+  png(paste0("PLOTS_QCs/HWE/",i,"_", cohortes[i],"_hwe.png"), height = 480, width = 480*3)
+layout(mat = layout_matrix)
+#       heights = c(1), # Heights of the two rows
+#       widths = c(1,1,1)) # Width first and second plot columns
+       qq(hwe[which(hwe$TEST=="ALL"),]$P, main=paste0(cohortes[i]," ALL"), cex.lab = 1.5,cex.axis = 0.8,cex.main = 2.5)
+       qq(hwe[which(hwe$TEST=="AFF"),]$P, main=paste0(cohortes[i]," AFF"), cex.lab = 1.5,cex.axis = 0.8,cex.main = 2.5)
+       abline(h=10, col="blue",lty=2)
+       qq(hwe[which(hwe$TEST=="UNAFF"),]$P, main=paste0(cohortes[i]," UNAFF"), cex.lab = 1.5,cex.axis = 0.8,cex.main = 2.5)
+       abline(h=6, col="blue",lty=2)
+dev.off()
+}
+
+```
+#### Extract SNPs
+```{r}
+for(i in 1:length(cohortes)){
+  hwe <-fread(paste0(cohortes[i],"/QC/hardy_", cohortes[i],".hwe"), h=T)
+  exclusion <- hwe[which(hwe$TEST=="UNAFF" & hwe$P<1e-6),]
+  exclusion2 <- hwe[which(hwe$TEST=="AFF" & hwe$P<1e-10),]
+  print(cohortes[i])
+  print(paste0("Se excluyen en controles: ",nrow(exclusion)))
+  print(paste0("Se excluyen en casos: ",nrow(exclusion2)))
+  exclusion_all <- rbind(as.data.frame(exclusion2[,2]),as.data.frame(exclusion[,2]))
+  write.table(exclusion_all, file=paste0(cohortes[i],"/exclude_hwe_", cohortes[i],".snp"), col.names = F, quote = F, sep = "\t", row.names = F)
+}
+rm(exclusion, exclusion2, exclusion_all, hwe)
+```
+
+```{bash}
+for a in ASB003_ASB005_ASB006;  do plink --bfile ${a}/hetok_${a} --exclude ${a}/exclude_hwe_${a}.snp --make-bed --out ${a}/hwe_${a}; done
+```
+
+```{r}
+qc_report[16,1] <- "HWE"
+for(i in 1:length(cohortes)){
+  bim <- fread(paste0(cohortes[i],"/hwe_",cohortes[i],".bim"))
+  fam <- fread(paste0(cohortes[i],"/hwe_",cohortes[i],".fam"))
+  if(i==1){
+    qc_report[16,2] <- nrow(bim)
+    qc_report[16,3] <- nrow(fam)
+  }
+  if(i==2){
+    qc_report[16,(2+2)] <- nrow(bim)
+    qc_report[16,(3+2)] <- nrow(fam)
+  }
+  fwrite(bim[,2], file = paste0("QC_reports/16.",cohortes[i],".snps"), col.names = F, quote = F, sep = "\t", row.names = F)
+  fwrite(fam[,1], file = paste0("QC_reports/16.",cohortes[i],".ids"), col.names = F, quote = F, sep = "\t", row.names = F)
+  rm(bim,fam)
+}
+```
+```{r}
+fwrite(qc_report, file="QC_reports/QC_report_ASB003_ASB005_merged.txt", col.names = T, row.names = F, quote = F, sep = "\t")
+```
+
+###Pre imputation
+
+```{bash}
+plink --freq --bfile ASB003_ASB005_ASB006/hwe_ASB003_ASB005_ASB006 --out ASB003_ASB005_ASB006/QC/qc_preimp/ASB003_ASB005_ASB006_freq        
+
+plink --bfile ASB003_ASB005_ASB006/hwe_ASB003_ASB005_ASB006 --make-bed --out ASB003_ASB005_ASB006/QC/qc_preimp/ASB003_ASB005_ASB006_final 
+```
+
+```{bash}
+cd /home/stroke/Documentos/Miquel_Gallardo/real_data/Dcs/MERGE/ASB003_ASB005_ASB006/QC/qc_preimp 
+
+perl /home/stroke/Documentos/Programs/13.Imputation/HRC-1000G-check-bim-v4.2.7/HRC-1000G-check-bim.pl -b ASB003_ASB005_ASB006_final.bim -f ASB003_ASB005_ASB006_freq.frq -r /home/stroke/Documentos/Programs/13.Imputation/HRC.r1-1.GRCh37.wgs.mac5.sites.tab -h sh Run-plink.sh
+
+chmod +x Run-plink.sh; ./Run-plink.sh
+
+mkdir Clean_files 
+
+for chr in $(seq 1 22); do plink --bfile ASB003_ASB005_ASB006_final-updated-chr${chr} --recode vcf --out Clean_files/ASB003_ASB005_ASB006_final_chr_${chr}; done
+
+mkdir Clean_files/GZ
+
+for chr in $(seq 1 22); do bcftools sort Clean_files/ASB003_ASB005_ASB006_final_chr_${chr}.vcf -Oz -o Clean_files/GZ/ASB003_ASB005_ASB006_final_chr_${chr}.vcf.gz; done
+```

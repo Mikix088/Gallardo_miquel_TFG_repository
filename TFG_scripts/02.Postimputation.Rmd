@@ -1,0 +1,100 @@
+---
+title: "02.Post imputation"
+author: "Miquel"
+date: "2024-02-27"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Load packages
+```{r}
+library(data.table)
+library(dplyr)
+library(tidyr)
+library(h2o)
+library(readxl)
+library(readr)
+library(biomaRt)
+library(readxl)
+library(tidyverse)
+library(gdsfmt)
+library (SNPRelate)
+library(scatterplot3d)
+library(plyr)
+library(geneplotter)
+library(UsingR)
+library(R.utils)
+library(purrr)
+```
+
+Load information
+```{r}
+info <- list()
+snps=0
+
+for(a in 1:22){
+  chr <- fread(paste0("/home/stroke/Documentos/Miquel_Gallardo/real_data/data/imputed_data/chr", a,".info.gz"))
+  info[[a]] <- chr[chr$Rsq<=0.6,]
+  snps=snps+nrow(chr)
+  print(paste0("#SNPs CHR",a,": ", nrow(chr)))
+  if(a==22){
+    print(paste0("Total: ", snps))
+  }
+}
+
+info <- ldply(info, data.frame)
+print(paste0("Total excluded: ", nrow(info)))
+print(paste0("Total pass QCs: ", (snps-nrow(info))))
+
+write.table(info$SNP, file="/home/stroke/Documentos/Miquel_Gallardo/real_data/data/imputed_data/lowinfo0.6.snp", col.names = F ,sep = "\t", row.names = F, quote = F)
+
+write.table(info[info$Rsq<=0.8,]$SNP, file="/home/stroke/Documentos/Miquel_Gallardo/real_data/data/imputed_data/lowinfo0.8.snp", col.names = F ,sep = "\t", row.names = F, quote = F)
+
+rm(list=ls())
+```
+
+Create the binaries 
+```{bash}
+cd /home/stroke/Documentos/Miquel_Gallardo/Tutorial/Tutorial_GWAS_GRECOS/imputation_results/grecos ; for i in $(seq 1 22); do plink2 --vcf chr${i}.dose.vcf.gz --exclude lowinfo0.6.snp --make-bed --out Merged_003_005_006_chr${i} --double-id ; done
+```
+
+Create a list of paths 
+```{r}
+dir_imputed_data <- "/home/stroke/Documentos/Miquel_Gallardo/real_data/data/imputed_data"
+
+lista <- paste0("/home/stroke/Documentos/Miquel_Gallardo/real_data/data/imputed_data/Merged_003_005_006_chr",1:22)
+lista <- data.table(lista)
+write.table(lista, "/home/stroke/Documentos/Miquel_Gallardo/real_data/data/imputed_data/chrs_merge.list", col.names = F, row.names = F, quote = F, sep = "\t")
+```
+
+Transform V2 in bim files 
+```{bash}
+directorio_bim="/home/stroke/Documentos/Miquel_Gallardo/real_data/data/imputed_data"
+
+
+for cromosoma in {1..22}; do
+  nombre_archivo="Merged_003_005_006_chr${cromosoma}.bim"
+  ruta_completa="${directorio_bim}/${nombre_archivo}"
+
+  
+  awk -F'\t' '{print $1 "\t" $2 ":" $5 ":" $6 "\t" $3 "\t" $4 "\t" $5 "\t" $6}' "${ruta_completa}" > "${ruta_completa}.tmp"
+
+  
+  mv "${ruta_completa}.tmp" "${ruta_completa}"
+done
+
+echo "Proceso completado."
+
+```
+
+```{bash}
+cd /home/stroke/Documentos/Miquel_Gallardo/real_data/data/imputed_data
+plink --merge-list chrs_merge.list --make-bed --out Merged_003_005_006_chrALL
+```
+
+```{bash}
+cd /home/stroke/Documentos/Miquel_Gallardo/real_data/data/imputed_data ; plink --bfile Merged_003_005_006_chrALL --geno 0.05 --maf 0.01 --make-bed --out Merged_003_005_006_clean
+```

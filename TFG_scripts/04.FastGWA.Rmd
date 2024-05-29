@@ -1,0 +1,605 @@
+---
+title: "04.FastGWA_Merged_ASB_003_005_006"
+author: "Miquel"
+date: "2024-02-28"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(data.table)
+library(reshape2)
+```
+
+```{bash}
+cd /home/stroke/Documentos/Miquel_Gallardo/real_data/data/imputed_data/
+
+for chr in {1..22}; do
+    output_prefix="CHR/CHR${chr}_just_collaterals_info"
+    plink --bfile just_collaterals_info --chr $chr --make-bed --out $output_prefix
+done
+```
+
+```{r}
+path <- "/home/stroke/Documentos/Miquel_Gallardo/real_data/data/imputed_data/CHR/"
+
+lista <- data.table(paste0(path, "CHR",1:22,"just_collaterals_info"))
+write.table(lista, file=paste0(path,"just_collaterals_info_chrs.txt"), col.names = F, sep = " ", row.names = F, quote = F)
+```
+
+
+```{r}
+final_just_collaterals <- subset(final_all, V1 %in% ids_colliseum$subset_df.V1)
+write.table(final_just_collaterals, "/home/stroke/Documentos/Miquel_Gallardo/real_data/data/imputed_data/final_just_collaterals.txt", quote = F, row.names = F, col.names = F)
+```
+
+
+```{r}
+# Read data
+fam_clean <- fread("/home/stroke/Documentos/Miquel_Gallardo/real_data/data/imputed_data/just_collaterals_info.fam")
+base <- subset(final_all, V1 %in% ids_colliseum$subset_df.V1)
+pcs <- fread("/home/stroke/Documentos/Miquel_Gallardo/real_data/data/PCA/PCAimputed_evs_just_collaterals_info_indepGENO0.txt")
+
+#base[base$ISQ_stroke == "Yes", "ISQ_stroke"] <- "1"
+#base[base$ISQ_stroke == "No", "ISQ_stroke"] <- "0"
+#table(base$ISQ_stroke)
+
+#base$ID_Michigan <- paste0(base$Orden_GWAS,"_", base$GWAS_ID)
+fam_clean_base <- merge(fam_clean, base, by.x="V1", by.y="V1", sort=F )
+fam_clean_base_pcs <- merge(fam_clean_base, pcs, by.x="V1", by.y="FID", sort=F )
+
+names(fam_clean_base_pcs)[90] <- "Brainomix_dicotom"
+names(fam_clean_base_pcs)[10] <- "Gender"
+names(fam_clean_base_pcs)[24] <- "Age"
+names(fam_clean_base_pcs)[91] <- "Rank_transformation"
+names(fam_clean_base_pcs)[56] <- "Collaterals_brainomix"
+names(fam_clean_base_pcs)[59] <- "Neuros_dicotom"
+
+phenotype56 <- fam_clean_base_pcs[,c(1,2,56)]
+phenotype59 <- fam_clean_base_pcs[,c(1,2,59)]
+phenotype90 <- fam_clean_base_pcs[,c(1,2,90)]
+phenotype91 <- fam_clean_base_pcs[,c(1,2,91)]
+covar <- fam_clean_base_pcs[,c(1,2,10)]
+qcovar <- fam_clean_base_pcs[,c(1, 2,24, 94, 95, 96, 97, 98)]
+
+# Print the first few rows of each data frame to verify the results
+head(phenotype56) # ids y Brainomix dicotomoizado
+head(covar) # ids y sexo (1=male 2=female)
+head(qcovar) # ids, edad, y los 5 primeros pcs
+```
+
+```{r}
+fam_clean_base_pcs$Brainomix_dicotom <- as.factor(fam_clean_base_pcs$Brainomix_dicotom)
+lm <- glm(Brainomix_dicotom ~ Gender + Age, data = fam_clean_base_pcs, family = "binomial")
+summary(lm)
+```
+
+```{r}
+path <- "/home/stroke/Documentos/Miquel_Gallardo/real_data/phenotype"
+
+write.table(phenotype90, file=paste0(path,"/phenotype_brainomix_just.txt"), col.names = F, row.names = F, quote = F)
+write.table(phenotype56, file=paste0(path,"/phenotype_collaterals_just.txt"), col.names = F, row.names = F, quote = F)
+write.table(phenotype59, file=paste0(path,"/phenotype_neuros_just.txt"), col.names = F, row.names = F, quote = F)
+write.table(phenotype91, file=paste0(path,"/phenotype_rank_just.txt"), col.names = F, row.names = F, quote = F)
+
+write.table(covar, file=paste0(path,"/covar_just.txt"), col.names = F, row.names = F, quote = F)
+
+write.table(qcovar, file=paste0(path,"/qcovar_just.txt"), col.names = F, row.names = F, quote = F)
+```
+
+#Brainomix
+```{bash}
+# Genome-wide Complex Trait Analysis (GCTA)
+cd /home/stroke/Documentos/Miquel_Gallardo/real_data
+gcta-1.94.1 --mbfile data/imputed_data/CHR/just_collaterals_info_chrs.txt --fastGWA-lr --pheno phenotype/phenotype_brainomix_just.txt --qcovar phenotype/qcovar_just.txt --covar phenotype/covar_just.txt --threads 10 --out data/GWAS/geno_assoc_brainomix
+```
+
+#Collaterals
+```{bash}
+# Genome-wide Complex Trait Analysis (GCTA)
+cd /home/stroke/Documentos/Miquel_Gallardo/real_data
+gcta-1.94.1 --mbfile data/imputed_data/CHR/just_collaterals_info_chrs.txt --fastGWA-lr --pheno phenotype/phenotype_collaterals_just.txt --qcovar phenotype/qcovar_just.txt --covar phenotype/covar_just.txt --threads 10 --out data/GWAS/geno_assoc_collaterals
+```
+
+#Neuros
+```{bash}
+# Genome-wide Complex Trait Analysis (GCTA)
+cd /home/stroke/Documentos/Miquel_Gallardo/real_data
+gcta-1.94.1 --mbfile data/imputed_data/CHR/just_collaterals_info_chrs.txt --fastGWA-lr --pheno phenotype/phenotype_neuros_just.txt --qcovar phenotype/qcovar_just.txt --covar phenotype/covar_just.txt --threads 10 --out data/GWAS/geno_assoc_neuros_dicotom
+```
+
+#Rank transform
+```{bash}
+# Genome-wide Complex Trait Analysis (GCTA)
+cd /home/stroke/Documentos/Miquel_Gallardo/real_data
+gcta-1.94.1 --mbfile data/imputed_data/CHR/just_collaterals_info_chrs.txt --fastGWA-lr --pheno phenotype/phenotype_rank_just.txt --qcovar phenotype/qcovar_just.txt --covar phenotype/covar_just.txt --threads 10 --out data/GWAS/geno_assoc_rank_transformation
+```
+
+# Neuros
+```{r}
+phenos <- c("neuros")
+
+# read files using file.path
+
+pheno_file <- fread("/home/stroke/Documentos/Miquel_Gallardo/real_data/phenotype/phenotype_neuros_just.txt")
+covar_file <- fread("/home/stroke/Documentos/Miquel_Gallardo/real_data/phenotype/covar_just.txt", header = FALSE)
+qcovar_file <- fread("/home/stroke/Documentos/Miquel_Gallardo/real_data/phenotype/qcovar_just.txt", header = FALSE)
+
+# Rename columns and combine files
+colnames(covar_file)[3] <- "SEX"
+colnames(qcovar_file)[3] <- "AGE"
+covar_file <- cbind(qcovar_file, covar_file)
+
+# Save information about NA for covariables
+exclude <- covar_file[is.na(covar_file$AGE) | is.na(covar_file$SEX),]
+write.table(exclude[,1:2], file = "/home/stroke/Documentos/Miquel_Gallardo/real_data/phenotype/na_sex_age_neuros.ids" , col.names = FALSE, quote = FALSE, sep = " ", row.names = FALSE)
+exclude2 <- pheno_file[is.na(pheno_file$V3),]
+
+pheno_file <- pheno_file[!pheno_file$V1%in%exclude$V1,]
+pheno_file <- pheno_file[!pheno_file$V1%in%exclude2$V1,]
+# Save info about bad/good for each analysis 
+write.table(pheno_file[which(pheno_file$V3==1),1:2],file=paste0("/home/stroke/Documentos/Miquel_Gallardo/real_data/phenotype/",phenos,"buenas.ids"), col.names = F, row.names = F, quote = F, sep = " ")
+write.table(pheno_file[!is.na(pheno_file$V3),1:2],file=paste0("/home/stroke/Documentos/Miquel_Gallardo/real_data/phenotype/",phenos,"no_na.ids"), col.names = F, row.names = F, quote = F, sep = " ")
+write.table(pheno_file[which(pheno_file$V3==0),1:2],file=paste0("/home/stroke/Documentos/Miquel_Gallardo/real_data/phenotype/",phenos,"malas.ids"), col.names = F, quote = F, sep = " ", row.names = F) 
+```
+
+# Brainomix
+```{r}
+phenos <- c("Brainomix")
+
+# read files using file.path
+
+pheno_file <- fread("/home/stroke/Documentos/Miquel_Gallardo/real_data/phenotype/phenotype_brainomix_just.txt")
+covar_file <- fread("/home/stroke/Documentos/Miquel_Gallardo/real_data/phenotype/covar_just.txt", header = FALSE)
+qcovar_file <- fread("/home/stroke/Documentos/Miquel_Gallardo/real_data/phenotype/qcovar_just.txt", header = FALSE)
+
+# Rename columns and combine files
+colnames(covar_file)[3] <- "SEX"
+colnames(qcovar_file)[3] <- "AGE"
+covar_file <- cbind(qcovar_file, covar_file)
+
+# Save information about NA for covariables
+exclude <- covar_file[is.na(covar_file$AGE) | is.na(covar_file$SEX),]
+write.table(exclude[,1:2], file = "/home/stroke/Documentos/Miquel_Gallardo/real_data/phenotype/na_sex_age_brainomix.ids" , col.names = FALSE, quote = FALSE, sep = " ", row.names = FALSE)
+exclude2 <- pheno_file[is.na(pheno_file$V3),]
+
+pheno_file <- pheno_file[!pheno_file$V1%in%exclude$V1,]
+pheno_file <- pheno_file[!pheno_file$V1%in%exclude2$V1,]
+# Save info about bad/good for each analysis 
+write.table(pheno_file[which(pheno_file$V3==1),1:2],file=paste0("/home/stroke/Documentos/Miquel_Gallardo/real_data/phenotype/",phenos,"buenas.ids"), col.names = F, row.names = F, quote = F, sep = " ")
+write.table(pheno_file[!is.na(pheno_file$V3),1:2],file=paste0("/home/stroke/Documentos/Miquel_Gallardo/real_data/phenotype/",phenos,"no_na.ids"), col.names = F, row.names = F, quote = F, sep = " ")
+write.table(pheno_file[which(pheno_file$V3==0),1:2],file=paste0("/home/stroke/Documentos/Miquel_Gallardo/real_data/phenotype/",phenos,"malas.ids"), col.names = F, quote = F, sep = " ", row.names = F) 
+```
+
+# Neuros
+```{bash}
+declare path="/home/stroke/Documentos/Miquel_Gallardo/real_data"
+
+for pheno in neurosno_na neurosbuenas neurosmalas ; do plink --bfile $path/data/imputed_data/just_collaterals_info --keep $path/phenotype/${pheno}.ids --remove $path/phenotype/na_sex_age_neuros.ids --hardy --out $path/data/HW/hardy_NoFam_${pheno} ; done
+```
+
+# Brainomix
+```{bash}
+declare path="/home/stroke/Documentos/Miquel_Gallardo/real_data"
+
+for pheno in Brainomixno_na Brainomixbuenas Brainomixmalas ; do plink --bfile $path/data/imputed_data/just_collaterals_info --keep $path/phenotype/${pheno}.ids --remove $path/phenotype/na_sex_age_brainomix.ids --hardy --out $path/data/HW/hardy_NoFam_${pheno} ; done
+```
+
+# collaterals
+```{bash}
+declare path="/home/stroke/Documentos/Miquel_Gallardo/real_data"
+
+ plink --bfile $path/data/imputed_data/just_collaterals_info  --hardy --out $path/data/HW/hardy_NoFam_collaterals 
+```
+
+# rank
+```{bash}
+declare path="/home/stroke/Documentos/Miquel_Gallardo/real_data"
+
+ plink --bfile $path/data/imputed_data/just_collaterals_info  --hardy --out $path/data/HW/hardy_NoFam_rank 
+```
+
+# Brainomix
+```{r}
+fenos <- c("Brainomix")
+fenos_analisis <- c("Brainomix")
+
+# Cargo el gwas
+brainomix_gwas <- fread("/home/stroke/Documentos/Miquel_Gallardo/real_data/data/GWAS/geno_assoc_brainomix.fastGWA")
+```
+
+# neuros
+```{r}
+fenos <- c("neuros")
+fenos_analisis <- c("neuros")
+
+# Cargo el gwas
+neuros_gwas <- fread("/home/stroke/Documentos/Miquel_Gallardo/real_data/data/GWAS/geno_assoc_neuros_dicotom.fastGWA")
+```
+
+# rank
+```{r}
+fenos <- c("rank")
+fenos_analisis <- c("rank")
+
+# Cargo el gwas
+rank_transformation_gwas <- fread("/home/stroke/Documentos/Miquel_Gallardo/real_data/data/GWAS/geno_assoc_rank_transformation.fastGWA")
+```   
+
+# collaterals
+```{r}
+fenos <- c("collaterals")
+fenos_analisis <- c("collaterals")
+
+# Cargo el gwas
+collaterals_gwas <- fread("/home/stroke/Documentos/Miquel_Gallardo/real_data/data/GWAS/geno_assoc_collaterals.fastGWA")
+```
+
+# brainomix
+```{r}
+hwe_mal_brainomix <- fread("/home/stroke/Documentos/Miquel_Gallardo/real_data/data/HW/hardy_NoFam_Brainomixmalas.hwe")
+
+colnames(hwe_mal_brainomix)[9] <- "P_hwe_mal_brx"
+colnames(hwe_mal_brainomix)[6] <- "GENO_mal_brx"
+
+hwe_brainomix <- fread("/home/stroke/Documentos/Miquel_Gallardo/real_data/data/HW/hardy_NoFam_Brainomixno_na.hwe")
+
+colnames(hwe_brainomix)[9] <- "P_hwe_brx"
+
+hwe_bien_brainomix <- fread("/home/stroke/Documentos/Miquel_Gallardo/real_data/data/HW/hardy_NoFam_Brainomixbuenas.hwe")
+
+colnames(hwe_bien_brainomix)[9] <- "P_hwe_bien_brx"
+colnames(hwe_bien_brainomix)[6] <- "GENO_bien_brx"
+```
+
+# neuros
+```{r}
+hwe_mal_neuros <- fread("/home/stroke/Documentos/Miquel_Gallardo/real_data/data/HW/hardy_NoFam_neurosmalas.hwe")
+
+colnames(hwe_mal_neuros)[9] <- "P_hwe_mal_neu"
+colnames(hwe_mal_neuros)[6] <- "GENO_mal_neu"
+
+hwe_neuros <- fread("/home/stroke/Documentos/Miquel_Gallardo/real_data/data/HW/hardy_NoFam_neurosno_na.hwe")
+
+colnames(hwe_neuros)[9] <- "P_hwe_neu"
+
+hwe_bien_neuros <- fread("/home/stroke/Documentos/Miquel_Gallardo/real_data/data/HW/hardy_NoFam_neurosbuenas.hwe")
+
+colnames(hwe_bien_neuros)[9] <- "P_hwe_bien_neu"
+colnames(hwe_bien_neuros)[6] <- "GENO_bien_neu"
+```
+
+# collaterals
+```{r}
+hwe_collaterals <- fread("/home/stroke/Documentos/Miquel_Gallardo/real_data/data/HW/hardy_NoFam_collaterals.hwe")
+colnames(hwe_collaterals)[9] <- "P_hwe_collaterals"
+hwe_collaterals <- as.data.frame(hwe_collaterals)
+```
+# rank
+```{r}
+hwe_rank <- fread("/home/stroke/Documentos/Miquel_Gallardo/real_data/data/HW/hardy_NoFam_rank.hwe")
+colnames(hwe_rank)[9] <- "P_hwe_rank"
+hwe_rank <- as.data.frame(hwe_rank)
+```
+
+# brainomix
+```{r}
+hwe_brainomix <- cbind(hwe_brainomix[,c(2,6,9)], hwe_bien_brainomix[,c(6,9)], hwe_mal_brainomix[,c(6,9)])
+rm(hwe_bien_brainomix, hwe_mal_brainomix)
+hwe_brainomix <- as.data.frame(hwe_brainomix)
+```
+
+# neuros
+```{r}
+hwe_neuros <- cbind(hwe_neuros[,c(2,6,9)], hwe_bien_neuros[,c(6,9)], hwe_mal_neuros[,c(6,9)])
+rm(hwe_bien_neuros, hwe_mal_neuros)
+hwe_neuros <- as.data.frame(hwe_neuros)
+```
+
+# brainomix
+```{r}
+hwe_brainomix[,8:10] <- colsplit(hwe_brainomix$GENO,"/", c("aa","Aa","AA")) 
+hwe_brainomix[,11:13] <- colsplit(hwe_brainomix$GENO_bien_brx,"/", c("aa_bien","Aa_bien","AA_bien")) 
+hwe_brainomix[,14:16] <- colsplit(hwe_brainomix$GENO_mal_brx,"/", c("aa_mal","Aa_mal","AA_mal")) 
+hwe_brainomix$GENO <- NULL
+hwe_brainomix$GENO_bien_brx <- NULL
+hwe_brainomix$GENO_mal_brx <- NULL
+```
+
+# neuros
+```{r}
+hwe_neuros[,8:10] <- colsplit(hwe_neuros$GENO,"/", c("aa","Aa","AA")) 
+hwe_neuros[,11:13] <- colsplit(hwe_neuros$GENO_bien_neu,"/", c("aa_bien","Aa_bien","AA_bien")) 
+hwe_neuros[,14:16] <- colsplit(hwe_neuros$GENO_mal_neu,"/", c("aa_mal","Aa_mal","AA_mal")) 
+hwe_neuros$GENO <- NULL
+hwe_neuros$GENO_bien_neu <- NULL
+hwe_neuros$GENO_mal_neu <- NULL
+```
+
+# collaterals
+```{r}
+hwe_collaterals[,10:12] <- colsplit(hwe_collaterals$GENO,"/", c("aa","Aa","AA")) 
+hwe_collaterals$GENO <- NULL
+```
+#rank
+```{r}
+hwe_rank[,10:12] <- colsplit(hwe_rank$GENO,"/", c("aa","Aa","AA")) 
+hwe_rank$GENO <- NULL
+```
+
+#brainomix
+```{r}
+hwe_brainomix$N_all <- hwe_brainomix$aa+hwe_brainomix$Aa+hwe_brainomix$AA
+hwe_brainomix$N_bien <- hwe_brainomix$aa_bien+hwe_brainomix$Aa_bien+hwe_brainomix$AA_bien
+hwe_brainomix$N_mal <- hwe_brainomix$aa_mal+hwe_brainomix$Aa_mal+hwe_brainomix$AA_mal
+
+hwe_brainomix$MAF <- (hwe_brainomix$aa*2+hwe_brainomix$Aa)/(2*hwe_brainomix$N_all)
+hwe_brainomix$MAF_bien <- (hwe_brainomix$aa_bien*2+hwe_brainomix$Aa_bien)/(2*hwe_brainomix$N_bien)
+hwe_brainomix$MAF_mal <- (hwe_brainomix$aa_mal*2+hwe_brainomix$Aa_mal)/(2*hwe_brainomix$N_mal)
+
+hwe_brainomix$MAC <- hwe_brainomix$aa*2+hwe_brainomix$Aa
+hwe_brainomix$MAC_bien <- hwe_brainomix$aa_bien*2+hwe_brainomix$Aa_bien
+hwe_brainomix$MAC_mal <- hwe_brainomix$aa_mal*2+hwe_brainomix$Aa_mal
+```
+
+#neuros
+```{r}
+hwe_neuros$N_all <- hwe_neuros$aa+hwe_neuros$Aa+hwe_neuros$AA
+hwe_neuros$N_bien <- hwe_neuros$aa_bien+hwe_neuros$Aa_bien+hwe_neuros$AA_bien
+hwe_neuros$N_mal <- hwe_neuros$aa_mal+hwe_neuros$Aa_mal+hwe_neuros$AA_mal
+
+hwe_neuros$MAF <- (hwe_neuros$aa*2+hwe_neuros$Aa)/(2*hwe_neuros$N_all)
+hwe_neuros$MAF_bien <- (hwe_neuros$aa_bien*2+hwe_neuros$Aa_bien)/(2*hwe_neuros$N_bien)
+hwe_neuros$MAF_mal <- (hwe_neuros$aa_mal*2+hwe_neuros$Aa_mal)/(2*hwe_neuros$N_mal)
+
+hwe_neuros$MAC <- hwe_neuros$aa*2+hwe_neuros$Aa
+hwe_neuros$MAC_bien <- hwe_neuros$aa_bien*2+hwe_neuros$Aa_bien
+hwe_neuros$MAC_mal <- hwe_neuros$aa_mal*2+hwe_neuros$Aa_mal
+```
+
+#collaterals
+```{r}
+hwe_collaterals$N_all <- hwe_collaterals$aa+hwe_collaterals$Aa+hwe_collaterals$AA
+hwe_collaterals$MAF <- (hwe_collaterals$aa*2+hwe_collaterals$Aa)/(2*hwe_collaterals$N_all)
+hwe_collaterals$MAC <- hwe_collaterals$aa*2+hwe_collaterals$Aa
+```
+
+#rank
+```{r}
+hwe_rank$N_all <- hwe_rank$aa+hwe_rank$Aa+hwe_rank$AA
+hwe_rank$MAF <- (hwe_rank$aa*2+hwe_rank$Aa)/(2*hwe_rank$N_all)
+hwe_rank$MAC <- hwe_rank$aa*2+hwe_rank$Aa
+```
+
+# brainomix
+```{r}
+brainomix_gwas <- cbind(brainomix_gwas[,c(2,1,3,4:10)],hwe_brainomix[,c(2:22)])
+```
+
+# neuros
+```{r}
+neuros_gwas <- cbind(neuros_gwas[,c(2,1,3,4:10)],hwe_neuros[,c(2:22)])
+```
+
+# collaterals
+```{r}
+collaterals_gwas <- cbind(collaterals_gwas[,c(2,1,3,4:10)],hwe_collaterals[,c(4:14)])
+```
+
+# rank
+```{r}
+rank_transformation_gwas <- cbind(rank_transformation_gwas[,c(2,1,3,4:10)],hwe_rank[,c(4:14)])
+```
+
+# brainomix
+```{r}
+brainomix_gwas_clean <- brainomix_gwas[brainomix_gwas$P_hwe_brx>1e-6,]
+brainomix_gwas_clean <- brainomix_gwas_clean[brainomix_gwas_clean$MAF>=0.01,]
+brainomix_gwas_clean <- brainomix_gwas_clean[brainomix_gwas_clean$MAF_bien>=0.01,]
+brainomix_gwas_clean <- brainomix_gwas_clean[brainomix_gwas_clean$MAF_mal>=0.01,]
+```
+
+# neuros
+```{r}
+neuros_gwas_clean <- neuros_gwas[neuros_gwas$P_hwe_neu>1e-6,]
+neuros_gwas_clean <- neuros_gwas_clean[neuros_gwas_clean$MAF>=0.01,]
+neuros_gwas_clean <- neuros_gwas_clean[neuros_gwas_clean$MAF_bien>=0.01,]
+neuros_gwas_clean <- neuros_gwas_clean[neuros_gwas_clean$MAF_mal>=0.01,]
+```
+
+# brainomix
+```{r}
+write.table(brainomix_gwas, file =("/home/stroke/Documentos/Miquel_Gallardo/real_data/data/GWAS/geno_assoc_brainomix.gwas.gz"), col.names = T, quote = F, sep = "\t")
+```
+
+# neuros
+```{r}
+write.table(neuros_gwas, file =("/home/stroke/Documentos/Miquel_Gallardo/real_data/data/GWAS/geno_assoc_neuros.gwas.gz"), col.names = T, quote = F, sep = "\t")
+```
+
+# collaterals
+```{r}
+write.table(collaterals_gwas, file =("/home/stroke/Documentos/Miquel_Gallardo/real_data/data/GWAS/geno_assoc_collaterals.gwas.gz"), col.names = T, quote = F, sep = "\t")
+```
+
+# rank
+```{r}
+write.table(rank_transformation_gwas, file =("/home/stroke/Documentos/Miquel_Gallardo/real_data/data/GWAS/geno_assoc_rank_transformation.gwas.gz"), col.names = T, quote = F, sep = "\t")
+```
+
+#brainomix
+```{r}
+# to calculate pValue with genomic conntrol
+chisq_brainomix <- qchisq(brainomix_gwas_clean$P,1,lower.tail=FALSE)
+non_na_chisq_brainomix <- chisq_brainomix[!is.na(chisq_brainomix)]
+lambda_brainomix <- median(non_na_chisq_brainomix)/qchisq(0.5,1)
+  if(lambda_brainomix>1){
+    newchisq_brainomix <- chisq_brainomix/lambda_brainomix
+    brainomix_gwas_clean$P_GC <- pchisq(newchisq_brainomix, df=1,lower.tail=FALSE)
+    brainomix_gwas_clean <- brainomix_gwas_clean[,c(1:10,32,11:31)]
+  }
+```
+
+#neuros 
+```{r}
+# to calculate pValue with genomic conntrol
+chisq_neuros <- qchisq(neuros_gwas_clean$P,1,lower.tail=FALSE)
+non_na_chisq_neuros <- chisq_neuros[!is.na(chisq_neuros)]
+lambda_neuros <- median(non_na_chisq_neuros)/qchisq(0.5,1)
+  if(lambda_neuros>1){
+    newchisq_neuros <- chisq_neuros/lambda_neuros
+    neuros_gwas_clean$P_GC <- pchisq(newchisq_neuros, df=1,lower.tail=FALSE)
+    neuros_gwas_clean <- neuros_gwas_clean[,c(1:10,32,11:31)]
+  }
+```
+
+#collaterals
+```{r}
+# to calculate pValue with genomic conntrol
+chisq_collaterals <- qchisq(collaterals_gwas$P,1,lower.tail=FALSE)
+non_na_chisq_collaterals <- chisq_collaterals[!is.na(chisq_collaterals)]
+lambda_collaterals <- median(non_na_chisq_collaterals)/qchisq(0.5,1)
+  if(lambda_collaterals>1){
+    newchisq_collaterals <- chisq_collaterals/lambda_collaterals
+    collaterals_gwas$P_GC <- pchisq(newchisq_collaterals, df=1,lower.tail=FALSE)
+  }
+```
+
+#rank
+```{r}
+# to calculate pValue with genomic conntrol
+chisq_rank <- qchisq(rank_transformation_gwas$P,1,lower.tail=FALSE)
+non_na_chisq_rank <- chisq_rank[!is.na(chisq_rank)]
+lambda_rank <- median(non_na_chisq_rank)/qchisq(0.5,1)
+  if(lambda_rank>1){
+    newchisq_rank <- chisq_rank/lambda_rank
+    rank_transformation_gwas$P_GC <- pchisq(newchisq_rank, df=1,lower.tail=FALSE)
+  }
+```
+
+# brainomix
+```{r}
+library(dplyr)
+brainomix_gwas_clean <- brainomix_gwas_clean %>%
+  mutate(rsID = sub(":.*", "", SNP))
+```
+
+# neuros
+```{r}
+neuros_gwas_clean <- neuros_gwas_clean %>%
+  mutate(rsID = sub(":.*", "", SNP))
+```
+
+# collaterals
+```{r}
+collaterals_gwas$rsID <- sub(":.*", "", collaterals_gwas$SNP)
+```
+
+# rank transformation
+```{r}
+rank_transformation_gwas$rsID <- sub(":.*", "", rank_transformation_gwas$SNP)
+```
+
+#brainomix prueba
+```{r}
+brx_p <- brainomix_gwas_clean[1:50000, ]
+```
+
+rename
+```{r}
+collaterals_gwas$CHR <- paste0("chr", collaterals_gwas$CHR)
+rank_transformation_gwas$CHR <- paste0("chr", rank_transformation_gwas$CHR)
+neuros_gwas_clean$CHR <- paste0("chr", neuros_gwas_clean$CHR)
+brainomix_gwas_clean$CHR <- paste0("chr", brainomix_gwas_clean$CHR)
+```
+
+# brainomix
+```{r}
+# Save GWAS with all the information and then clean 
+fwrite(brainomix_gwas_clean, file=("/home/stroke/Documentos/Miquel_Gallardo/real_data/data/GWAS/geno_assoc_brainomix_clean.gwas.gz"), col.names = T, row.names = F, quote = F, sep = "\t")
+fwrite(brx_p, file=("/home/stroke/Documentos/Miquel_Gallardo/real_data/data/GWAS/geno_assoc_brainomix_prueba_clean.gwas.gz"), col.names = T, row.names = F, quote = F, sep = "\t")
+```
+
+# neuros
+```{r}
+# Save GWAS with all the information and then clean 
+fwrite(neuros_gwas_clean, file=("/home/stroke/Documentos/Miquel_Gallardo/real_data/data/GWAS/geno_assoc_neuros_clean.gwas.gz"), col.names = T, row.names = F, quote = F, sep = "\t")
+```
+
+# collaterals
+```{r}
+# Save GWAS with all the information and then clean 
+fwrite(collaterals_gwas, file=("/home/stroke/Documentos/Miquel_Gallardo/real_data/data/GWAS/geno_assoc_collaterals_clean.gwas.gz"), col.names = T, row.names = F, quote = F, sep = "\t")
+```
+
+# rank
+```{r}
+# Save GWAS with all the information and then clean 
+fwrite(rank_transformation_gwas, file=("/home/stroke/Documentos/Miquel_Gallardo/real_data/data/GWAS/geno_assoc_rank_transformation_clean.gwas.gz"), col.names = T, row.names = F, quote = F, sep = "\t")
+```
+
+# brainomix
+```{r}
+library(qqman)
+sig_snp_brx <-brainomix_gwas_clean[brainomix_gwas_clean$P<7e-8,]
+png("/home/stroke/Documentos/Miquel_Gallardo/real_data/data/Manhattan/Manhattan_Brainomix_both.manh.qq.png", height = 480, width = 480*3)
+ layout(mat = matrix(c(1,2), nrow = 1, ncol = 2),
+        heights = c(1), # Heights of the two rows
+        widths = c(2, 1)) # Width first and second plot columns
+ 
+     manhattan(brainomix_gwas_clean[brainomix_gwas_clean$P<0.5,], snp="SNP",chr="CHR",bp="POS", p="P", main="Manhattan Brainomix")
+     text(sig_snp_brx$POS, -log10(sig_snp_brx$P), labels = sig_snp_brx$SNP, cex = 0.8, pos = 3)
+ 
+     qq(brainomix_gwas_clean$P, main=paste0("Lambda = ", round(lambda_brainomix,3)))
+ dev.off()
+```
+
+# neuros
+```{r}
+library(qqman)
+sig_snp_neu <-neuros_gwas_clean[neuros_gwas_clean$P<7e-8,]
+png("/home/stroke/Documentos/Miquel_Gallardo/real_data/data/Manhattan/Manhattan_neuros_both.manh.qq.png", height = 480, width = 480*3)
+ layout(mat = matrix(c(1,2), nrow = 1, ncol = 2),
+        heights = c(1), # Heights of the two rows
+        widths = c(2, 1)) # Width first and second plot columns
+ 
+     manhattan(neuros_gwas_clean[neuros_gwas_clean$P<0.5,], snp="SNP",chr="CHR",bp="POS", p="P", main="Manhattan Neuros")
+     text(sig_snp_neu$POS, -log10(sig_snp_neu$P), labels = sig_snp_neu$SNP, cex = 0.8, pos = 3)
+ 
+     qq(neuros_gwas_clean$P, main=paste0("Lambda = ", round(lambda_neuros,3)))
+ dev.off()
+```
+
+# collaterals
+```{r}
+library(qqman)
+sig_snp_coll <-collaterals_gwas[collaterals_gwas$P<7e-8,]
+png("/home/stroke/Documentos/Miquel_Gallardo/real_data/data/Manhattan/Manhattan_collaterals_both.manh.qq.png", height = 480, width = 480*3)
+ layout(mat = matrix(c(1,2), nrow = 1, ncol = 2),
+        heights = c(1), # Heights of the two rows
+        widths = c(2, 1)) # Width first and second plot columns
+ 
+     manhattan(collaterals_gwas[collaterals_gwas$P<0.5,], snp="SNP",chr="CHR",bp="POS", p="P", main="Manhattan Collaterals")
+     text(sig_snp_coll$POS, -log10(sig_snp_coll$P), labels = sig_snp_coll$SNP, cex = 0.8, pos = 3)
+ 
+     qq(collaterals_gwas$P, main=paste0("Lambda = ", round(lambda_collaterals,3)))
+ dev.off()
+```
+# rank transformation
+```{r}
+library(qqman)
+sig_snp_rank <-rank_transformation_gwas[rank_transformation_gwas$P<7e-8,]
+png("/home/stroke/Documentos/Miquel_Gallardo/real_data/data/Manhattan/Manhattan_rank_transformation_both.manh.qq.png", height = 480, width = 480*3)
+ layout(mat = matrix(c(1,2), nrow = 1, ncol = 2),
+        heights = c(1), # Heights of the two rows
+        widths = c(2, 1)) # Width first and second plot columns
+ 
+     manhattan(rank_transformation_gwas[rank_transformation_gwas$P<0.5,], snp="SNP",chr="CHR",bp="POS", p="P", main="Manhattan Rank Transformation")
+     text(sig_snp_rank$POS, -log10(sig_snp_rank$P), labels = sig_snp_rank$SNP, cex = 0.8, pos = 3)
+ 
+     qq(rank_transformation_gwas$P, main=paste0("Lambda = ", round(lambda_rank,3)))
+ dev.off()
+```

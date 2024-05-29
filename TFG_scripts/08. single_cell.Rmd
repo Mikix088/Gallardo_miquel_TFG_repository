@@ -1,0 +1,1437 @@
+---
+title: "Untitled"
+author: "Miquel"
+date: "2024-5-10"
+output: html_document
+---
+
+# Cargar paquetes
+Instalar celldex:
+if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+    BiocManager::install("celldex")
+    BiocManager::install("SingleR")
+    
+```{r}
+# Para instalar celldex hay que instalar RCurl, y para ello:
+#devtools::install_github('satijalab/seurat-data', force = T)
+#if (!require("BiocManager", quietly = TRUE))
+  #  BiocManager::install("alabaster.base", lib="/home/stroke/R/x86_64-pc-linux-gnu-library/4.4/")
+
+library(SeuratData)
+library(scCustomize)
+library(ggplot2)
+library(cowplot)
+library(celldex) 
+library(pheatmap)
+library(SingleR)
+library(data.table)
+library(stringi) 
+library(dplyr)
+library(tidyr)
+library(readxl)
+library(readr)
+library(readxl)
+library(tidyverse)
+library(scatterplot3d)
+library(e1071)
+library(robustbase)
+library(univOutl)
+library(plyr)
+library(Seurat)
+library(SeuratObject)
+library(patchwork)
+library(gridExtra)
+library(SeuratDisk)
+
+#if (!requireNamespace("remotes", quietly = TRUE)) {
+#  install.packages("remotes")
+#}
+#remotes::install_github("mojaveazure/seurat-disk")
+```
+# Instalación cellranger
+## Descarga e instalación
+```{bash}
+declare programas="/home/stroke/Documentos/Programs"
+cd $programas
+
+# Descarga: https://support.10xgenomics.com/single-cell-gene-expression/software/downloads/latest
+
+# Descomprimir
+tar -xvf cellranger-8.0.0.tar.tar
+
+# No copiar el archivo en otras localizaciones o asegurar que se copian tb archivos ocultos, si no no funcionará
+```
+
+## Exportar path
+```{bash}
+export PATH=/home/stroke/Documentos/Programs/cellranger-8.0.0:$PATH
+which cellranger
+```
+## Comprobar instalación
+
+```{bash}
+declare programas="/home/stroke/Documentos/Programs/cellranger-8.0.0"
+declare resultados="/home/stroke/Documentos/Miquel_Gallardo/real_data/SINGLE_CELL/results"
+
+cd $resultados
+
+$programas/cellranger testrun --id tiny
+```
+
+# Requerimientos/dependencias
+Hardware
+Cell Ranger pipelines run on Linux systems that meet these minimum requirements:
+
+8-core Intel or AMD processor (16 cores recommended)
+64GB RAM (128GB recommended)
+1TB free disk space
+64-bit CentOS/RedHat 7.0 or Ubuntu 14.04 (deprecated November, 2021); See the 10x Genomics OS Support page for details
+
+Software dependencies
+In order to run cellranger mkfastq, the following software needs to be installed:
+
+Illumina® bcl2fastq: bcl2fastq must be version 2.20 or higher.
+
+Cell Ranger runs with --jobmode=local by default, using 90% of available memory and all available cores. To restrict resource usage, please see the --localmem and --localcores flags for cellranger count at the link here for more information.
+Many Linux systems have default user limits (ulimits) for maximum open files and maximum user processes as low as 1024 or 4096. Because Cell Ranger spawns multiple processes per core, jobs that use a large number of cores can exceed these limits. 10x Genomics recommends higher limits.
+
+## bcl2fastq2
+```{bash}
+# Descargar: https://support.illumina.com/sequencing/sequencing_software/bcl2fastq-conversion-software.html
+declare descargas="/home/stroke/Descargas/bcl2fastq2-v2-20-0-linux-x86-64"
+cd $descargas
+
+# Instalar programas para convertir el rpm en archivo que pueda leer linux
+# sudo apt install rpm
+# sudo apt install alien
+
+# To convert a package from rpm to debian format
+sudo alien bcl2fastq2-v2.20.0.422-Linux-x86_64.rpm 
+sudo dpkg -i bcl2fastq2_0v2.20.0.422-2_amd64.deb
+
+```
+## GRCh38
+```{bash}
+declare programas="/media/stroke/Almacen/PROGRAMAS"
+cd $programas
+curl -O https://cf.10xgenomics.com/supp/cell-exp/refdata-gex-GRCh38-2020-A.tar.gz
+
+# Comprobar qué clase de archivo es
+file refdata-gex-GRCh38-2020-A.tar.gz
+
+# Se trata de un gzip, por lo que descomprimimos
+tar -xzvf refdata-gex-GRCh38-2020-A.tar.gz 
+```
+
+
+## Comprobar requerimientos del sistema
+```{bash}
+declare programas="/home/stroke/Documentos/Programs/cellranger-8.0.0"
+declare resultados="/home/stroke/Documentos/Miquel_Gallardo/real_data/SINGLE_CELL/results"
+
+$programas/cellranger sitecheck > $resultados/sitecheck.txt
+
+less $resultados/sitecheck.txt
+
+$programas/cellranger upload miquel.gallardo@alum.esci.upf.edu $resultados/sitecheck.txt
+```
+
+# Comprobar que el archivo se cargó correctamente en el disco duro que mandan
+```{bash}
+# En cada carpeta de raw data del paciente abrir un terminal y correr el comando:
+md5sum -c MD5.txt 
+```
+
+
+# ANÁLISIS
+## 1. Cellranger ## No hacer 
+```{bash}
+declare programas="/home/stroke/Documentos/Programs"
+declare datos="/home/stroke/Documentos/Miquel_Gallardo/real_data/SINGLE_CELL/datos"
+declare resultados="/home/stroke/Documentos/Miquel_Gallardo/real_data/SINGLE_CELL/results"
+#mkdir $resultados/INDIVIDUAL
+#mkdir $resultados/INTEGRATION
+#mkdir $resultados/COMMON
+declare resultados="/home/stroke/Documentos/Miquel_Gallardo/real_data/SINGLE_CELL/results/INDIVIDUAL"
+
+# Make sure your files follow the correct naming convention, e.g. SampleName_S1_L001_R1_001.fastq.gz (and the R2 version)
+
+cd $resultados
+
+$programas/cellranger-8.0.0/cellranger count --id=SAMPLE_L452 --fastqs=$datos/SAMPLE_L452 --sample=L452_EKDL230011594-1A_HKTC7DSX7 --transcriptome=$programas/refdata-gex-GRCh38-2020-A
+  
+$programas/cellranger-8.0.0/cellranger count --id=SAMPLE_L453 --fastqs=$datos/SAMPLE_L453 --sample=L453_EKDL230011595-1A_HKTC7DSX7 --transcriptome=$programas/refdata-gex-GRCh38-2020-A  
+
+$programas/cellranger-8.0.0/cellranger count --id=SAMPLE_L454 --fastqs=$datos/SAMPLE_L454 --sample=L454_EKDL230011596-1A_HKTC7DSX7 --transcriptome=$programas/refdata-gex-GRCh38-2020-A 
+
+#$programas/cellranger-8.0.0/cellranger count --id=SAMPLE_L455 --fastqs=$datos/L455 --sample=L455_EKDL230011597-1A_HKTC7DSX7 --transcriptome=$programas/refdata-gex-GRCh38-2020-A 
+
+#$programas/cellranger-8.0.0/cellranger count --id=SAMPLE_L468 --fastqs=$datos/L468 --sample=L468_EKDL230011598-1A_HKTC7DSX7 --transcriptome=$programas/refdata-gex-GRCh38-2020-A 
+
+#$programas/cellranger-8.0.0/cellranger count --id=SAMPLE_L469 --fastqs=$datos/L469 --sample=L469_EKDL230011599-1A_HKTC7DSX7 --transcriptome=$programas/refdata-gex-GRCh38-2020-A 
+
+$programas/cellranger-8.0.0/cellranger count --id=SAMPLE_L470 --fastqs=$datos/SAMPLE_L470 --sample=L470_EKDL230011600-1A_HKTC7DSX7 --transcriptome=$programas/refdata-gex-GRCh38-2020-A 
+
+$programas/cellranger-8.0.0/cellranger count --id=SAMPLE_L471 --fastqs=$datos/SAMPLE_L471 --sample=L471_EKDL230011601-1A_HKTC7DSX7 --transcriptome=$programas/refdata-gex-GRCh38-2020-A 
+
+#for a in L452 L453 L454 L455 L468 L469 L470 L471; do mkdir ./SAMPLE_${a} ; done
+
+#for a in L452 L453 L454 L455 L468 L469 L470 L471; do mkdir ./SAMPLE_${a}/SEURAT ; done
+
+#for a in L452 L453 L454 L455 L468 L469 L470 L471; do mkdir ./SAMPLE_${a}/SEURAT/GRAPHICS ; done
+```
+
+## DISCOVERY
+### 2. Cargar archivo
+```{r}
+set.seed(123456)
+
+# Con cellranger hemos creado para cada muestra una serie de resultados en la carpeta outs. Aquí, en la carpeta raw_feature_bc_matrix encontramos el archivo mtx a cargar, junto con los barcodes y las features
+
+# For this tutorial, we will be analyzing the a dataset of Peripheral Blood Mononuclear Cells (seurat_discovery) freely available from 10X Genomics. There are 2,700 single cells that were sequenced on the Illumina NextSeq 500. The raw data can be found here.
+
+# We start by reading in the data. The Read10X() function reads in the output of the cellranger pipeline from 10X, returning a unique molecular identified (UMI) count matrix. The values in this matrix represent the number of molecules for each feature (i.e. gene; row) that are detected in each cell (column).
+
+# We next use the count matrix to create a Seurat object. The object serves as a container that contains both data (like the count matrix) and analysis (like PCA, or clustering results) for a single-cell dataset. For a technical discussion of the Seurat object structure, check out our GitHub Wiki. For example, the count matrix is stored in seurat_discovery[["RNA"]]@counts.
+
+# Initialize the Seurat object with the raw (non-normalized data)
+path_1<-"single_cell/data"
+dirs<-list.dirs(path = path_1, recursive = F, full.names = T)
+sample<-gsub(paste0(path_1,"/"),"",dirs)
+sample_discovery<-sample[1:4]
+sample_replic<-sample[5:8]
+path_2<-"/outs/raw_feature_bc_matrix"
+# sample<-c("L452", "L453", "L454", "L455", "L468", "L469", "L470","L471")
+# sample<-stringi::stri_paste("SAMPLE_",sample)
+
+mtx<-list()
+seurat_discovery<-list()
+resumen<-list()
+path<-list()
+
+for (i in 1:length(sample_discovery)){
+  path[i]<-paste0(path_1,"/",sample_discovery[i],path_2, "/")
+  mtx[[i]]<-ReadMtx(mtx = paste0(path[i],"matrix.mtx.gz"),
+        features = paste0(path[i],"features.tsv.gz"),
+        cells = paste0(path[i],"barcodes.tsv.gz"))
+  names(mtx)[i]<-sample_discovery[i]
+  seurat_discovery[[i]]<-CreateSeuratObject(counts = mtx[[i]],
+                               project = sample_discovery[i],
+                               min.cells = 3, 
+                               min.features = 200)
+  names(seurat_discovery)[i]<-sample_discovery[i]
+  resumen[[i]] <- data.table(Action="Seurat Object Creation", Features=dim(seurat_discovery[[i]])[1], sample_discoverys=dim(seurat_discovery[[i]])[2])
+  names(resumen)[i]<-sample_discovery[i]
+}
+
+# https://www.biostars.org/p/407339/. The values they picked here are somewhat arbitrary, but min.cells helps limit the number of genes used by removing those unlikely to play any part in differentiating groups of cells due to being expressed in very few cells. In general, most genes removed will be those with zero counts across all cells. min.features removes dead cells cells and empty droplets where few genes are detected.
+## min.cells: Include features detected in at least this many cells. Will subset the counts matrix as well. To reintroduce excluded features, create a new object with a lower cutoff. Se eliminarán todos los genes que no estén en al menos 3 células.
+## min. features: Include cells where at least this many features are detected.Se eliminarán todas las células que no tengan al menos ese número de features que sea han puesto
+```
+
+### 3. QC and selecting cells for further analysis
+Seurat allows you to easily explore QC metrics and filter cells based on any user-defined criteria. A few QC metrics commonly used by the community include
+
+ nCount: número de tránscritos
+ nFeatures: número de genes con al menos un tránscrito (at least 1 UMI count)
+
+  . The number of unique genes detected in each cell.
+    Low-quality cells or empty droplets will often have very few genes
+    Cell doublets or multiplets may exhibit an aberrantly high gene count
+  . Similarly, the total number of molecules detected within a cell (correlates strongly with unique genes)
+  . The percentage of reads that map to the mitochondrial genome
+    Low-quality / dying cells often exhibit extensive mitochondrial contamination
+    We calculate mitochondrial QC metrics with the PercentageFeatureSet() function, which calculates the percentage of counts originating from a set of features
+    We use the set of all genes starting with MT- as a set of mitochondrial genes
+
+```{r}
+set.seed(123456)
+
+path_1<-"single_cell/data/"
+path_comm<-"single_cell/COMMON/"
+dirs<-list.dirs(path = path_1, recursive = F, full.names = T)
+sample<-gsub(paste0(path_1,"/"),"",dirs)
+sample_discovery<-sample[1:4]
+sample_replic<-sample[5:8]
+path_2<- "/SEURAT/GRAPHICS/"
+# sample_discovery<-c("L452", "L453", "L454", "L455", "L468", "L469", "L470","L471")
+# sample_discovery<-stringi::stri_paste("sample_discovery_",sample_discovery)
+
+
+# We calculate mitochondrial QC metrics with the PercentageFeatureSet() function, which calculates the percentage of counts originating from a set of features
+
+for (i in 1:length(sample_discovery)){
+  seurat_discovery[[i]][["percent.mt"]] <- PercentageFeatureSet(seurat_discovery[[i]], pattern = "^MT-")
+}
+View(seurat_discovery[[1]]@meta.data)
+
+#The number of unique genes and total molecules are automatically calculated during CreateSeuratObject(). You can find them stored in the object meta data
+head(seurat_discovery[[1]]@meta.data, 5)
+
+# We filter cells that have unique feature counts over 2,500 or less than 200
+# We filter cells that have >5% mitochondrial counts
+
+# Visualize QC metrics as a violin plot
+violin<-list()
+for (i in 1:length(sample_discovery)){
+  violin[[i]]<-VlnPlot(seurat_discovery[[i]], features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+  ggsave(violin[[i]], file=paste0(path_1,sample_discovery[i],path_2,sample_discovery[i],"_violin_count.png"))
+}
+
+# grid.arrange(grobs = violin, ncol = 4) 
+# ggsave(file = paste0(path_comm,"common_violin_count.png"), arrangeGrob(grobs = violin, ncol = 4))
+
+
+# FeatureScatter is typically used to visualize feature-feature relationships, but can be used
+# for anything calculated by the object, i.e. columns in object metadata, PC scores etc.
+scatter<-list()
+for (i in 1:length(sample_discovery)){
+  scatter[[i]]<-FeatureScatter(seurat_discovery[[i]], feature1 = "nCount_RNA", feature2 = "percent.mt")
+  ggsave(scatter[[i]], file=paste0(path_1,sample_discovery[i],path_2,sample_discovery[i],"_scatter_count_mit.png"))
+}
+
+# grid.arrange(grobs = scatter, ncol = 4) 
+# ggsave(file = paste0(path_comm,"common_scatter_count_mit.png"), arrangeGrob(grobs = violin, ncol = 4))
+ 
+scatter<-list()
+for (i in 1:length(sample_discovery)){
+  scatter[[i]]<-FeatureScatter(seurat_discovery[[i]], feature1 = "nCount_RNA", feature2 = "nFeature_RNA") +
+  geom_smooth(method = 'lm')
+     ggsave(scatter[[i]], file=paste0(path_1,sample_discovery[i],path_2,sample_discovery[i],"_scatter_count_feat.png"))
+}   
+
+# grid.arrange(grobs = scatter, ncol = 4) 
+# ggsave(file = paste0(path_comm,"common_scatter_count_feat.png"), arrangeGrob(grobs = violin, ncol = 4))
+# No debería haber puntos en el cuadrante inferior derecho ni en el cuadrante superior izquierdo del scatter ncount_nfeature
+
+add<-data.table()
+# Filtering 
+for (i in 1:length(sample_discovery)){
+  seurat_discovery[[i]] <- subset(seurat_discovery[[i]], subset = nFeature_RNA > 200 & nFeature_RNA < 2500 & percent.mt < 5)
+  add <-data.table(c("Filtering", dim(seurat_discovery[[i]])[1], dim(seurat_discovery[[i]])[2]))
+    resumen[[i]]<-rbind(resumen[[i]],data.table(Action="Filtering",Features=dim(seurat_discovery[[i]])[1], sample_discoverys=dim(seurat_discovery[[i]])[2]))
+}
+ 
+resumen_todos<-ldply(resumen, data.table)
+fwrite(resumen_todos,file = paste0(path_comm,"resumen_cells.txt"), sep = " ",col.names = T)
+
+# nFeature_RNA is the number of genes detected in each cell
+# nCount_RNA is the total number of transcripts detected within a cell
+# Low nFeature_RNA for a cell indicates that it may be dead/dying or an empty droplet. High nCount_RNA and/or nFeature_RNA indicates that the "cell" may in fact be a doublet (or multiplet). In combination with %mitochondrial reads, removing outliers from these groups removes most doublets/dead cells/empty droplets, hence why filtering is a common pre-processing step
+```
+
+### 4. Normalizing
+```{r}
+# After removing unwanted cells from the dataset, the next step is to normalize the data. By default, we employ a global-scaling normalization method “LogNormalize” that c measurements for each cell by the total expression, multiplies this by a scale factor (10,000 by default), and log-transforms the result. Normalized values are stored in seurat_discovery[["RNA"]]@data.
+set.seed(123456)
+
+for (i in 1:length(sample_discovery)){
+  seurat_discovery[[i]] <- NormalizeData(seurat_discovery[[i]], normalization.method = "LogNormalize", scale.factor = 10000)
+}
+
+
+# For clarity, in this previous line of code (and in future commands), we provide the default values for certain parameters in the function call. However, this isn’t required and the same behavior can be achieved with:
+# seurat_discovery <- NormalizeData(seurat_discovery)
+#seurat_discovery <- NormalizeData(seurat_discovery, normalization.method = "LogNormalize", scale.factor = 10000)
+# OR
+
+
+```
+
+
+
+### 5. Identify highly variable features
+```{r}
+# We next calculate a subset of features that exhibit high cell-to-cell variation in the dataset (i.e, they are highly expressed in some cells, and lowly expressed in others). We and others have found that focusing on these genes in downstream analysis helps to highlight biological signal in single-cell datasets.
+
+# Our procedure in Seurat is described in detail here, and improves on previous versions by directly modeling the mean-variance relationship inherent in single-cell data, and is implemented in the FindVariableFeatures() function. By default, we return 2,000 features per dataset. These will be used in downstream analysis, like PCA.
+set.seed(123456)
+
+
+dirs<-list.dirs(path = path_1, recursive = F, full.names = T)
+sample<-gsub(paste0(path_1,"/"),"",dirs)
+sample_discovery<-sample[1:4]
+sample_replic<-sample[5:8]
+path_2<- "/SEURAT/GRAPHICS/"
+
+# Guardar el objeto sin selección
+seurat<-seurat_discovery
+
+# Selección de las variables
+for (i in 1:length(sample_discovery)){
+  seurat_discovery[[i]] <- FindVariableFeatures(seurat_discovery[[i]], selection.method = "vst", nfeatures = 2000)
+}
+
+#selection.method: How to choose top variable features. Choose one of :
+  # vst: First, ﬁts a line to the relationship of log(variance) and log(mean) using local polynomial regression (loess). Then standardizes the feature values using the observed mean and expected variance (given by the ﬁtted line). Feature variance is then calculated on the standardized values after clipping to a maximum (see clip.max parameter).
+  # mean.var.plot (mvp): First, uses a function to calculate average expression (mean.function) and dispersion (dispersion.function) for each feature. Next, divides features into num.bin (deafult 20) bins based on their average expression, and calculates z-scores for dispersion within each bin. The purpose of this is to identify variable features while controlling for the strong relationship between variability and average expression.
+  # dispersion (disp): selects the genes with the highest dispersion values
+# nfeatures: Number of features to select as top variable features; only used when selection.method is set to 'dispersion' or 'vst'
+
+# Identify the 10 most highly variable genes
+top10<-list() 
+for (i in 1:length(sample_discovery)){
+  top10[[i]]<- head(VariableFeatures(seurat_discovery[[i]]), 10)
+  names(top10)[i]<-sample_discovery[i]
+}
+
+top10_juntos<-lapply(top10, data.table)
+top10_juntos<-do.call(cbind,top10_juntos)
+fwrite(top10_juntos,file = paste0(path_comm,"top10_indiv.txt"),col.names = T,sep = " ")
+
+# plot variable features with and without labels
+plot1<-list()
+for (i in 1:length(sample_discovery)){
+  plot1[[i]] <- VariableFeaturePlot(seurat_discovery[[i]])
+  LabelPoints(plot = plot1[[i]], points = top10[[i]], repel = TRUE)
+  ggsave(plot1[[i]], file=paste0(path_1,sample_discovery[i],path_2,sample_discovery[i],"_variability.png"))
+}
+
+# grid.arrange(grobs = plot1, ncol = 4) 
+# ggsave(file = paste0(path_comm,"common_variability.png"), arrangeGrob(grobs = plot1, ncol = 4))
+
+```
+### INTEGRACIÓN DE MUESTRAS
+#### 6. Integration
+```{r}
+set.seed(123456)
+# Select integration features
+features<-SelectIntegrationFeatures(object.list = seurat_discovery)
+
+# Find integration anchors (CCA)
+anchors <- FindIntegrationAnchors(object.list = seurat_discovery, anchor.features = features)
+
+# Integrate data
+seurat.integrated_discovery<-IntegrateData(anchorset = anchors)
+```
+
+#### 7. QC integrated data
+```{r}
+set.seed(123456)
+
+path_integr<-"single_cell/INTEGRATION/DISCOVERY/"
+
+DefaultAssay(seurat.integrated_discovery)<-"integrated"
+seurat.integrated_discovery<-ScaleData(object = seurat.integrated_discovery)
+seurat.integrated_discovery<-RunPCA(object = seurat.integrated_discovery)
+
+ggsave(ElbowPlot(seurat.integrated_discovery), file=paste0(path_integr,"common_elbow_integrated_discovery.png"))
+
+seurat.integrated_discovery<-RunUMAP(object = seurat.integrated_discovery, dims=1:15)
+
+ggsave(DimPlot(seurat.integrated_discovery, reduction = "umap", group.by = "orig.ident"), file=paste0(path_integr,"umap_integrated_bypatient_discovery.png"))
+
+```
+#### 8. Clusters
+```{r}
+set.seed(123456)
+
+seurat.integrated_discovery <- FindNeighbors(seurat.integrated_discovery, reduction = "pca", dims = 1:15)
+seurat.integrated_discovery <- FindClusters(seurat.integrated_discovery, resolution = c(0.1, 0.3, 0.5, 0.7, 1))
+
+ggsave(DimPlot(seurat.integrated_discovery, reduction = "umap", group.by = "integrated_snn_res.0.1", label = T), file=paste0(path_integr,"integrated_snn_res.0.1_discovery.png"))
+
+ggsave(DimPlot(seurat.integrated_discovery, reduction = "umap", group.by = "integrated_snn_res.0.3", label = T), file=paste0(path_integr,"integrated_snn_res.0.3_discovery.png"))
+
+ggsave(DimPlot(seurat.integrated_discovery, reduction = "umap", group.by = "integrated_snn_res.0.5", label = T), file=paste0(path_integr,"integrated_snn_res.0.5_discovery.png"))
+
+ggsave(DimPlot(seurat.integrated_discovery, reduction = "umap", group.by = "integrated_snn_res.0.7", label = T), file=paste0(path_integr,"integrated_snn_res.0.7_discovery.png"))
+
+ggsave(DimPlot(seurat.integrated_discovery, reduction = "umap", group.by = "integrated_snn_res.1", label = T), file=paste0(path_integr,"integrated_snn_res.1_discovery.png"))
+
+ggsave(DimPlot(seurat.integrated_discovery, reduction = "umap", group.by = "orig.ident", label = T), file=paste0(path_integr,"integrated_umap_patient_discovery.png"))
+
+
+#p2 <- DimPlot(seurat.integrated_discovery, reduction = "umap", label = TRUE, repel = TRUE)
+#p1 + p2
+
+```
+
+#### 9. Assigning cell type identity to clusters
+```{r}
+set.seed(123456)
+
+# The celldex contains a number of curated reference datasets, mostly assembled from bulk RNA-seq or microarray data of sorted cell types. These references are often good enough for most applications provided that they contain the cell types that are expected in the test population. Here, we will use a reference constructed from Blueprint and ENCODE data (Martens and Stunnenberg 2013; The ENCODE Project Consortium 2012); this is obtained by calling the BlueprintEncode() function to construct a SummarizedExperiment containing log-expression values with curated labels for each sample.
+
+ref <- celldex::HumanPrimaryCellAtlasData()
+View(as.data.table(colData(ref)))
+
+DefaultAssay(seurat.integrated_discovery)<-"RNA"
+
+# To save a Seurat Object
+#saveRDS(seurat.integrated_discovery, file = '../MIQUEL/data_not.join.rds')
+
+# To read a Seurat Object
+# data = readRDS('../MIQUEL/data_not.join.rds')
+
+## Here we will use the JoinLayers() function to join the counts of all my samples, eitherways we will not be able to run this: cadasil_counts <- GetAssayData(seurat.integrated_discovery, slot = "counts")
+
+seurat.integrated_discovery = SetIdent(seurat.integrated_discovery, value = seurat.integrated_discovery$orig.ident)
+seurat.integrated_discovery = JoinLayers(seurat.integrated_discovery)
+
+cadasil_counts <- GetAssayData(seurat.integrated_discovery, slot = "counts")
+
+# Prediction
+pred <- SingleR::SingleR(test=cadasil_counts, 
+                         ref=ref, 
+                         labels=ref$label.main,
+                         assay.type.test=1)
+
+# Visualización
+
+seurat.integrated_discovery$singleR.labels<-pred$labels[match(rownames(seurat.integrated_discovery@meta.data), rownames(pred))]
+
+seurat.integrated_discovery$etiquetas<-NA
+  pred$labels[match(rownames(seurat.integrated_discovery@meta.data), rownames(pred))]
+
+ggsave(DimPlot(seurat.integrated_discovery, reduction= "umap", group.by = "singleR.labels"), file=paste0(path_integr,"umap_labels_discovery.png"))
+
+resumen_cel<-data.table(table(seurat.integrated_discovery$singleR.labels))
+resumen_cel$porcentaje<-NA
+for (i in 1:dim(resumen_cel)[1]){
+  resumen_cel$porcentaje[i]<-100*resumen_cel$N[i]/sum(resumen_cel$N)
+}
+
+fwrite(resumen_cel,file = paste0(path_integr,"resumen_cel_integr_discovery.txt"), sep = " ", col.names = T, na = NA, quote = F)
+
+# Scores
+corr<-data.table(pred$scores)
+
+fwrite(corr,file =paste0(path_integr,"corr_integr_discovery.txt"), quote = F, sep = " ",col.names = T,na=NA)
+
+
+# Correlación con la predicción
+
+png(paste0(path_integr,"heat_corr_discovery.png"))
+plotScoreHeatmap(pred)
+dev.off()
+saveRDS(seurat.integrated_discovery, file = paste0(path_integr,"seurat_integr_discovery.rds"))
+  
+
+```
+
+#### 10. Expresión diferencial
+##### Añadir fenotipo
+```{r}
+seurat.integrated_discovery$cad<-NA
+seurat.integrated_discovery$cad[seurat.integrated_discovery$orig.ident=="SAMPLE_L452"]<-"CAD8"
+seurat.integrated_discovery$cad[seurat.integrated_discovery$orig.ident=="SAMPLE_L453"]<-"CAD15"
+seurat.integrated_discovery$cad[seurat.integrated_discovery$orig.ident=="SAMPLE_L454"]<-"CAD31"
+seurat.integrated_discovery$cad[seurat.integrated_discovery$orig.ident=="SAMPLE_L455"]<-"CAD2"
+# seurat.integrated_discovery$cad[seurat.integrated_discovery$orig.ident=="SAMPLE_L468"]<-"CAD7"
+# seurat.integrated_discovery$cad[seurat.integrated_discovery$orig.ident=="SAMPLE_L469"]<-"CAD9"
+# seurat.integrated_discovery$cad[seurat.integrated_discovery$orig.ident=="SAMPLE_L470"]<-"CAD32"
+# seurat.integrated_discovery$cad[seurat.integrated_discovery$orig.ident=="SAMPLE_L471"]<-"CAD14"
+seurat.integrated_discovery$exon<-"good"
+seurat.integrated_discovery$exon[seurat.integrated_discovery$cad=="CAD2"]<-"bad"
+seurat.integrated_discovery$exon[seurat.integrated_discovery$cad=="CAD7"]<-"bad"
+seurat.integrated_discovery$exon[seurat.integrated_discovery$cad=="CAD8"]<-"bad"
+seurat.integrated_discovery$exon[seurat.integrated_discovery$cad=="CAD9"]<-"bad"
+seurat.integrated_discovery$sex<-"male"
+seurat.integrated_discovery$sex[seurat.integrated_discovery$cad=="CAD2"]<-"female"
+seurat.integrated_discovery$sex[seurat.integrated_discovery$cad=="CAD9"]<-"female"
+seurat.integrated_discovery$sex[seurat.integrated_discovery$cad=="CAD15"]<-"female"
+seurat.integrated_discovery$sex[seurat.integrated_discovery$cad=="CAD32"]<-"female"
+
+seurat.integrated_discovery$cognit<-NA
+seurat.integrated_discovery$cognit[seurat.integrated_discovery$cad=="CAD2"]<-NA
+seurat.integrated_discovery$cognit[seurat.integrated_discovery$cad=="CAD7"]<-"muy_leve"
+seurat.integrated_discovery$cognit[seurat.integrated_discovery$cad=="CAD8"]<-"leve"
+seurat.integrated_discovery$cognit[seurat.integrated_discovery$cad=="CAD9"]<-"normal"
+seurat.integrated_discovery$cognit[seurat.integrated_discovery$cad=="CAD14"]<-"leve"
+seurat.integrated_discovery$cognit[seurat.integrated_discovery$cad=="CAD15"]<-"leve"
+seurat.integrated_discovery$cognit[seurat.integrated_discovery$cad=="CAD31"]<-"muy_leve"
+seurat.integrated_discovery$cognit[seurat.integrated_discovery$cad=="CAD32"]<-"leve"
+```
+
+##### ENDOTELIO
+```{r}
+set.seed(123456)
+
+path_1<-"single_cell/INDIVIDUAL/"
+
+dirs<-list.dirs(path = path_1, recursive = F, full.names = T)
+sample<-gsub(paste0(path_1,"/"),"",dirs)
+sample_discovery<-sample[1:4]
+sample_discovery<-sample[5:8]
+path_2<- "/SEURAT/GRAPHICS/"
+
+theme_set(theme_cowplot())
+endotelio <- subset(seurat.integrated_discovery, idents = )
+Idents(seurat.integrated_discovery) <- "singleR.labels" 
+cell_values <- c("Endothelial_cells")
+endotelio<-subset(seurat.integrated_discovery, idents = cell_values, invert = FALSE)
+diferencias$diferencias_sign[diferencias$p_val_adj<0.05]<-"signif"
+diferencias$diferencias_sign[abs(diferencias$avg_log2FC)>2&diferencias$p_val_adj<0.05]<-"imp"
+
+fwrite(diferencias,file = paste0(path_integr,"expres_endot_exon_discovery.txt"),quote = F, sep = "\t", col.names = T, row.names = T)
+p1<- ggplot(data=diferencias, aes(x=avg_log2FC, y=-log10(p_val),col = diferencias_sign )) + 
+  geom_point() + 
+  ggtitle("Differences in expression in endothelial cells according to mutation location") +
+  geom_point(size = 2) + 
+  scale_color_manual(values = c("#956DA0","grey","#E79D5D")) 
+
+ggsave(filename = paste0(path_integr,"volcano_endot_exon_discovery.png"),p1)
+
+# SEXO
+Idents(endotelio)<-"sex"
+diferencias <- FindMarkers(endotelio, ident.1 = "male", ident.2 = "female")
+diferencias$diferencias_sign<-"no signif"
+diferencias$diferencias_sign[diferencias$p_val_adj<0.05]<-"signif"
+diferencias$diferencias_sign[abs(diferencias$avg_log2FC)>2&diferencias$p_val_adj<0.05]<-"imp"
+
+fwrite(diferencias,file = paste0(path_integr,"expres_endot_sex_discovery.txt"),quote = F, sep = "\t", col.names = T, row.names = T)
+
+p1<- ggplot(data=diferencias, aes(x=avg_log2FC, y=-log10(p_val),col = diferencias_sign )) + 
+  geom_point() + 
+  ggtitle("Differences in expression in endothelial cells according to sex") +
+  geom_point(size = 2) + 
+  scale_color_manual(values = c("#956DA0","grey","#E79D5D")) 
+
+ggsave(filename = paste0(path_integr,"volcano_endot_sex_discovery.png"),p1)
+
+# COGNICIÓN
+Idents(endotelio)<-"cognit"
+diferencias <- FindMarkers(endotelio, ident.1 = "leve")
+diferencias$diferencias_sign<-"no signif"
+diferencias$diferencias_sign[diferencias$p_val_adj<0.05]<-"signif"
+diferencias$diferencias_sign[abs(diferencias$avg_log2FC)>2&diferencias$p_val_adj<0.05]<-"imp"
+
+fwrite(diferencias,file = paste0(path_integr,"expres_endot_cognit_discovery.txt"),quote = F, sep = "\t", col.names = T, row.names = T)
+
+p1<- ggplot(data=diferencias, aes(x=avg_log2FC, y=-log10(p_val),col = diferencias_sign )) + 
+  geom_point() + 
+  ggtitle("Differences in expression in endothelial cells according to cognitive impairment") +
+  geom_point(size = 2) + 
+  scale_color_manual(values = c("#956DA0","grey","#E79D5D")) 
+
+ggsave(filename = paste0(path_integr,"volcano_endot_cognit_discovery.png"),p1)
+#p1 <- ggplot(avg.endotelio, aes(CTRL, STIM)) + geom_point() + ggtitle("CD4 Naive T Cells")
+#
+#p2 <- ggplot(avg.cd14.mono, aes(CTRL, STIM)) + geom_point() + ggtitle("CD14 Monocytes")
+#p2 <- LabelPoints(plot = p2, points = genes.to.label, repel = TRUE)
+#p1 + p2
+```
+
+##### VSMC
+```{r}
+set.seed(123456)
+
+path_1<-"single_cell/INDIVIDUAL/"
+
+dirs<-list.dirs(path = path_1, recursive = F, full.names = T)
+sample<-gsub(paste0(path_1,"/"),"",dirs)
+sample_discovery<-sample[1:4]
+sample_discovery<-sample[5:8]
+path_2<- "/SEURAT/GRAPHICS/"
+
+theme_set(theme_cowplot())
+Idents(seurat.integrated_discovery) <- "singleR.labels" 
+cell_values <- c("Smooth_muscle_cells")
+vsmc<-subset(seurat.integrated_discovery, idents = cell_values, invert = FALSE)
+
+
+Idents(vsmc) <- "exon"
+avg.vsmc <- as.data.frame(log1p(AverageExpression(vsmc, verbose = FALSE)$RNA))
+
+avg.vsmc$gene <- rownames(avg.vsmc)
+
+# EXON
+Idents(vsmc)<-"exon"
+diferencias <- FindMarkers(vsmc, ident.1 = "good", ident.2 = "bad")
+p.aj<-0.05/dim(diferencias)[1]
+diferencias$diferencias_sign<-"no signif"
+diferencias$diferencias_sign[diferencias$p_val_adj<0.05]<-"signif"
+diferencias$diferencias_sign[abs(diferencias$avg_log2FC)>2&diferencias$p_val_adj<0.05]<-"imp"
+
+fwrite(diferencias,file = paste0(path_integr,"expres_vsmc_exon_discovery.txt"),quote = F, sep = "\t", col.names = T, row.names = T)
+p1<- ggplot(data=diferencias, aes(x=avg_log2FC, y=-log10(p_val),col = diferencias_sign )) + 
+  geom_point() + 
+  ggtitle("Differences in expression in VSMC cells according to mutation location") +
+  geom_point(size = 2) + 
+  scale_color_manual(values = c("#956DA0","grey","#E79D5D")) 
+
+ggsave(filename = paste0(path_integr,"volcano_vsmc_exon_discovery.png"),p1)
+
+# SEXO
+Idents(vsmc)<-"sex"
+diferencias <- FindMarkers(vsmc, ident.1 = "male", ident.2 = "female")
+diferencias$diferencias_sign<-"no signif"
+diferencias$diferencias_sign[diferencias$p_val_adj<0.05]<-"signif"
+diferencias$diferencias_sign[abs(diferencias$avg_log2FC)>2&diferencias$p_val_adj<0.05]<-"imp"
+
+fwrite(diferencias,file = paste0(path_integr,"expres_vsmc_sex_discovery.txt"),quote = F, sep = "\t", col.names = T, row.names = T)
+
+p1<- ggplot(data=diferencias, aes(x=avg_log2FC, y=-log10(p_val),col = diferencias_sign )) + 
+  geom_point() + 
+  ggtitle("Differences in expression in VSMC cells according to sex") +
+  geom_point(size = 2) + 
+  scale_color_manual(values = c("#956DA0","grey","#E79D5D")) 
+
+ggsave(filename = paste0(path_integr,"volcano_vsmc_sex_discovery.png"),p1)
+
+# COGNICIÓN
+Idents(vsmc)<-"cognit"
+diferencias <- FindMarkers(vsmc, ident.1 = "leve")
+diferencias$diferencias_sign<-"no signif"
+diferencias$diferencias_sign[diferencias$p_val_adj<0.05]<-"signif"
+diferencias$diferencias_sign[abs(diferencias$avg_log2FC)>2&diferencias$p_val_adj<0.05]<-"imp"
+
+fwrite(diferencias,file = paste0(path_integr,"expres_vsmc_cognit_discovery.txt"),quote = F, sep = "\t", col.names = T, row.names = T)
+
+p1<- ggplot(data=diferencias, aes(x=avg_log2FC, y=-log10(p_val),col = diferencias_sign )) + 
+  geom_point() + 
+  ggtitle("Differences in expression in VSMC cells according to cognitive impairment") +
+  geom_point(size = 2) + 
+  scale_color_manual(values = c("#956DA0","grey","#E79D5D")) 
+
+ggsave(filename = paste0(path_integr,"volcano_vsmc_cognit_discovery.png"),p1)
+```
+
+## REPLICACIÓN
+### 2. Cargar archivo
+```{r}
+set.seed(123456)
+# Con cellranger hemos creado para cada muestra una serie de resultados en la carpeta outs. Aquí, en la carpeta raw_feature_bc_matrix encontramos el archivo mtx a cargar, junto con los barcodes y las features
+
+# For this tutorial, we will be analyzing the a dataset of Peripheral Blood Mononuclear Cells (seurat_replication) freely available from 10X Genomics. There are 2,700 single cells that were sequenced on the Illumina NextSeq 500. The raw data can be found here.
+
+# We start by reading in the data. The Read10X() function reads in the output of the cellranger pipeline from 10X, returning a unique molecular identified (UMI) count matrix. The values in this matrix represent the number of molecules for each feature (i.e. gene; row) that are detected in each cell (column).
+
+# We next use the count matrix to create a Seurat object. The object serves as a container that contains both data (like the count matrix) and analysis (like PCA, or clustering results) for a single-cell dataset. For a technical discussion of the Seurat object structure, check out our GitHub Wiki. For example, the count matrix is stored in seurat_replication[["RNA"]]@counts.
+
+# Initialize the Seurat object with the raw (non-normalized data)
+path_1<-"single_cell/data/"
+dirs<-list.dirs(path = path_1, recursive = F, full.names = T)
+sample<-gsub(paste0(path_1,"/"),"",dirs)
+sample_discovery<-sample[1:4]
+sample_replication<-sample[5:8]
+path_2<-"/outs/raw_feature_bc_matrix/"
+# sample<-c("L452", "L453", "L454", "L455", "L468", "L469", "L470","L471")
+# sample<-stringi::stri_paste("SAMPLE_",sample)
+
+mtx<-list()
+seurat_replication<-list()
+resumen<-list()
+path<-list()
+
+for (i in 1:length(sample_replication)){
+  path[i]<-paste0(path_1,sample_replication[i],path_2)
+  mtx[[i]]<-ReadMtx(mtx = paste0(path[i],"matrix.mtx.gz"),
+        features = paste0(path[i],"features.tsv.gz"),
+        cells = paste0(path[i],"barcodes.tsv.gz"))
+  names(mtx)[i]<-sample_replication[i]
+  seurat_replication[[i]]<-CreateSeuratObject(counts = mtx[[i]],
+                               project = sample_replication[i],
+                               min.cells = 3, 
+                               min.features = 200)
+  names(seurat_replication)[i]<-sample_replication[i]
+  resumen[[i]] <- data.table(Action="Seurat Object Creation", Features=dim(seurat_replication[[i]])[1], sample_replications=dim(seurat_replication[[i]])[2])
+  names(resumen)[i]<-sample_replication[i]
+}
+
+# https://www.biostars.org/p/407339/. The values they picked here are somewhat arbitrary, but min.cells helps limit the number of genes used by removing those unlikely to play any part in differentiating groups of cells due to being expressed in very few cells. In general, most genes removed will be those with zero counts across all cells. min.features removes dead cells cells and empty droplets where few genes are detected.
+## min.cells: Include features detected in at least this many cells. Will subset the counts matrix as well. To reintroduce excluded features, create a new object with a lower cutoff. Se eliminarán todos los genes que no estén en al menos 3 células.
+## min. features: Include cells where at least this many features are detected.Se eliminarán todas las células que no tengan al menos ese número de features que sea han puesto
+```
+
+### 3. QC and selecting cells for further analysis
+Seurat allows you to easily explore QC metrics and filter cells based on any user-defined criteria. A few QC metrics commonly used by the community include
+
+ nCount: número de tránscritos
+ nFeatures: número de genes con al menos un tránscrito (at least 1 UMI count)
+
+  . The number of unique genes detected in each cell.
+    Low-quality cells or empty droplets will often have very few genes
+    Cell doublets or multiplets may exhibit an aberrantly high gene count
+  . Similarly, the total number of molecules detected within a cell (correlates strongly with unique genes)
+  . The percentage of reads that map to the mitochondrial genome
+    Low-quality / dying cells often exhibit extensive mitochondrial contamination
+    We calculate mitochondrial QC metrics with the PercentageFeatureSet() function, which calculates the percentage of counts originating from a set of features
+    We use the set of all genes starting with MT- as a set of mitochondrial genes
+
+```{r}
+set.seed(123456)
+
+path_1<-"single_cell/INDIVIDUAL/"
+path_comm<-"single_cell/COMMON/"
+dirs<-list.dirs(path = path_1, recursive = F, full.names = T)
+sample<-gsub(paste0(path_1,"/"),"",dirs)
+sample_discovery<-sample[1:4]
+sample_replication<-sample[5:8]
+path_2<- "/SEURAT/GRAPHICS/"
+# sample_replication<-c("L452", "L453", "L454", "L455", "L468", "L469", "L470","L471")
+# sample_replication<-stringi::stri_paste("sample_replication_",sample_replication)
+
+
+# We calculate mitochondrial QC metrics with the PercentageFeatureSet() function, which calculates the percentage of counts originating from a set of features
+
+for (i in 1:length(sample_replication)){
+  seurat_replication[[i]][["percent.mt"]] <- PercentageFeatureSet(seurat_replication[[i]], pattern = "^MT-")
+}
+View(seurat_replication[[1]]@meta.data)
+
+#The number of unique genes and total molecules are automatically calculated during CreateSeuratObject(). You can find them stored in the object meta data
+head(seurat_replication[[1]]@meta.data, 5)
+
+# We filter cells that have unique feature counts over 2,500 or less than 200
+# We filter cells that have >5% mitochondrial counts
+
+# Visualize QC metrics as a violin plot
+violin<-list()
+for (i in 1:length(sample_replication)){
+  violin[[i]]<-VlnPlot(seurat_replication[[i]], features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+  ggsave(violin[[i]], file=paste0(path_1,sample_replication[i],path_2,sample_replication[i],"_violin_count.png"))
+}
+
+# grid.arrange(grobs = violin, ncol = 4) 
+# ggsave(file = paste0(path_comm,"common_violin_count.png"), arrangeGrob(grobs = violin, ncol = 4))
+
+
+# FeatureScatter is typically used to visualize feature-feature relationships, but can be used
+# for anything calculated by the object, i.e. columns in object metadata, PC scores etc.
+scatter<-list()
+for (i in 1:length(sample_replication)){
+  scatter[[i]]<-FeatureScatter(seurat_replication[[i]], feature1 = "nCount_RNA", feature2 = "percent.mt")
+  ggsave(scatter[[i]], file=paste0(path_1,sample_replication[i],path_2,sample_replication[i],"_scatter_count_mit.png"))
+}
+
+# grid.arrange(grobs = scatter, ncol = 4) 
+# ggsave(file = paste0(path_comm,"common_scatter_count_mit.png"), arrangeGrob(grobs = violin, ncol = 4))
+ 
+scatter<-list()
+for (i in 1:length(sample_replication)){
+  scatter[[i]]<-FeatureScatter(seurat_replication[[i]], feature1 = "nCount_RNA", feature2 = "nFeature_RNA") +
+  geom_smooth(method = 'lm')
+     ggsave(scatter[[i]], file=paste0(path_1,sample_replication[i],path_2,sample_replication[i],"_scatter_count_feat.png"))
+}   
+
+# grid.arrange(grobs = scatter, ncol = 4) 
+# ggsave(file = paste0(path_comm,"common_scatter_count_feat.png"), arrangeGrob(grobs = violin, ncol = 4))
+# No debería haber puntos en el cuadrante inferior derecho ni en el cuadrante superior izquierdo del scatter ncount_nfeature
+
+add<-data.table()
+# Filtering 
+for (i in 1:length(sample_replication)){
+  seurat_replication[[i]] <- subset(seurat_replication[[i]], subset = nFeature_RNA > 200 & nFeature_RNA < 2500 & percent.mt < 5)
+  add <-data.table(c("Filtering", dim(seurat_replication[[i]])[1], dim(seurat_replication[[i]])[2]))
+    resumen[[i]]<-rbind(resumen[[i]],data.table(Action="Filtering",Features=dim(seurat_replication[[i]])[1], sample_replications=dim(seurat_replication[[i]])[2]))
+}
+ 
+resumen_todos<-ldply(resumen, data.table)
+fwrite(resumen_todos,file = paste0(path_comm,"resumen_cells_rep.txt"), sep = " ",col.names = T)
+
+# nFeature_RNA is the number of genes detected in each cell
+# nCount_RNA is the total number of transcripts detected within a cell
+# Low nFeature_RNA for a cell indicates that it may be dead/dying or an empty droplet. High nCount_RNA and/or nFeature_RNA indicates that the "cell" may in fact be a doublet (or multiplet). In combination with %mitochondrial reads, removing outliers from these groups removes most doublets/dead cells/empty droplets, hence why filtering is a common pre-processing step
+```
+
+### 4. Normalizing
+```{r}
+# After removing unwanted cells from the dataset, the next step is to normalize the data. By default, we employ a global-scaling normalization method “LogNormalize” that normalizes the feature expression measurements for each cell by the total expression, multiplies this by a scale factor (10,000 by default), and log-transforms the result. Normalized values are stored in seurat_replication[["RNA"]]@data.
+set.seed(123456)
+
+for (i in 1:length(sample_replication)){
+  seurat_replication[[i]] <- NormalizeData(seurat_replication[[i]], normalization.method = "LogNormalize", scale.factor = 10000)
+}
+
+
+# For clarity, in this previous line of code (and in future commands), we provide the default values for certain parameters in the function call. However, this isn’t required and the same behavior can be achieved with:
+# seurat_replication <- NormalizeData(seurat_replication)
+#seurat_replication <- NormalizeData(seurat_replication, normalization.method = "LogNormalize", scale.factor = 10000)
+# OR
+
+
+```
+
+
+
+### 5. Identify highly variable features
+```{r}
+# We next calculate a subset of features that exhibit high cell-to-cell variation in the dataset (i.e, they are highly expressed in some cells, and lowly expressed in others). We and others have found that focusing on these genes in downstream analysis helps to highlight biological signal in single-cell datasets.
+
+# Our procedure in Seurat is described in detail here, and improves on previous versions by directly modeling the mean-variance relationship inherent in single-cell data, and is implemented in the FindVariableFeatures() function. By default, we return 2,000 features per dataset. These will be used in downstream analysis, like PCA.
+set.seed(123456)
+
+dirs<-list.dirs(path = path_1, recursive = F, full.names = T)
+sample<-gsub(paste0(path_1,"/"),"",dirs)
+sample_replication<-sample[1:4]
+sample_replication<-sample[5:8]
+path_2<- "/SEURAT/GRAPHICS/"
+
+# Guardar el objeto sin selección
+seurat<-seurat_replication
+
+# Selección de las variables
+for (i in 1:length(sample_replication)){
+  seurat_replication[[i]] <- FindVariableFeatures(seurat_replication[[i]], selection.method = "vst", nfeatures = 2000)
+}
+
+#selection.method: How to choose top variable features. Choose one of :
+  # vst: First, ﬁts a line to the relationship of log(variance) and log(mean) using local polynomial regression (loess). Then standardizes the feature values using the observed mean and expected variance (given by the ﬁtted line). Feature variance is then calculated on the standardized values after clipping to a maximum (see clip.max parameter).
+  # mean.var.plot (mvp): First, uses a function to calculate average expression (mean.function) and dispersion (dispersion.function) for each feature. Next, divides features into num.bin (deafult 20) bins based on their average expression, and calculates z-scores for dispersion within each bin. The purpose of this is to identify variable features while controlling for the strong relationship between variability and average expression.
+  # dispersion (disp): selects the genes with the highest dispersion values
+# nfeatures: Number of features to select as top variable features; only used when selection.method is set to 'dispersion' or 'vst'
+
+# Identify the 10 most highly variable genes
+top10<-list() 
+for (i in 1:length(sample_replication)){
+  top10[[i]]<- head(VariableFeatures(seurat_replication[[i]]), 10)
+  names(top10)[i]<-sample_replication[i]
+}
+
+top10_juntos<-lapply(top10, data.table)
+top10_juntos<-do.call(cbind,top10_juntos)
+fwrite(top10_juntos,file = paste0(path_comm,"top10_indiv_rep.txt"),col.names = T,sep = " ")
+
+# plot variable features with and without labels
+plot1<-list()
+for (i in 1:length(sample_replication)){
+  plot1[[i]] <- VariableFeaturePlot(seurat_replication[[i]])
+  LabelPoints(plot = plot1[[i]], points = top10[[i]], repel = TRUE)
+  ggsave(plot1[[i]], file=paste0(path_1,sample_replication[i],path_2,sample_replication[i],"_variability.png"))
+}
+
+# grid.arrange(grobs = plot1, ncol = 4) 
+# ggsave(file = paste0(path_comm,"common_variability.png"), arrangeGrob(grobs = plot1, ncol = 4))
+
+```
+### INTEGRACIÓN DE MUESTRAS
+#### 6. Integration
+```{r}
+set.seed(123456)
+# Select integration features
+features<-SelectIntegrationFeatures(object.list = seurat_replication)
+
+# Find integration anchors (CCA)
+anchors <- FindIntegrationAnchors(object.list = seurat_replication, anchor.features = features)
+
+# Integrate data
+seurat.integrated_replication<-IntegrateData(anchorset = anchors)
+```
+
+#### 7. QC integrated data
+```{r}
+set.seed(123456)
+
+dirs<-list.dirs(path = path_1, recursive = F, full.names = T)
+sample<-gsub(paste0(path_1,"/"),"",dirs)
+sample_replication<-sample[1:4]
+sample_replication<-sample[5:8]
+path_2<- "/SEURAT/GRAPHICS/"
+path_integr<-"single_cell/INTEGRATION/REPLICATION/"
+
+DefaultAssay(seurat.integrated_replication)<-"integrated"
+seurat.integrated_replication<-ScaleData(object = seurat.integrated_replication)
+seurat.integrated_replication<-RunPCA(object = seurat.integrated_replication)
+
+ggsave(ElbowPlot(seurat.integrated_replication), file=paste0(path_integr,"common_elbow_integrated_replication.png"))
+
+seurat.integrated_replication<-RunUMAP(object = seurat.integrated_replication, dims=1:15)
+
+ggsave(DimPlot(seurat.integrated_replication, reduction = "umap", group.by = "orig.ident"), file=paste0(path_integr,"umap_integrated_bypatient_replication.png"))
+
+```
+#### 8. Clusters
+```{r}
+set.seed(123456)
+dirs<-list.dirs(path = path_1, recursive = F, full.names = T)
+sample<-gsub(paste0(path_1,"/"),"",dirs)
+sample_replication<-sample[1:4]
+sample_replication<-sample[5:8]
+path_2<- "/SEURAT/GRAPHICS/"
+path_integr<-"single_cell/INTEGRATION/REPLICATION/"
+
+seurat.integrated_replication <- FindNeighbors(seurat.integrated_replication, reduction = "pca", dims = 1:15)
+seurat.integrated_replication <- FindClusters(seurat.integrated_replication, resolution = c(0.1, 0.3, 0.5, 0.7, 1))
+
+ggsave(DimPlot(seurat.integrated_replication, reduction = "umap", group.by = "integrated_snn_res.0.1", label = T), file=paste0(path_integr,"integrated_snn_res.0.1_replication.png"))
+
+ggsave(DimPlot(seurat.integrated_replication, reduction = "umap", group.by = "integrated_snn_res.0.3", label = T), file=paste0(path_integr,"integrated_snn_res.0.3_replication.png"))
+
+ggsave(DimPlot(seurat.integrated_replication, reduction = "umap", group.by = "integrated_snn_res.0.5", label = T), file=paste0(path_integr,"integrated_snn_res.0.5_replication.png"))
+
+ggsave(DimPlot(seurat.integrated_replication, reduction = "umap", group.by = "integrated_snn_res.0.7", label = T), file=paste0(path_integr,"integrated_snn_res.0.7_replication.png"))
+
+ggsave(DimPlot(seurat.integrated_replication, reduction = "umap", group.by = "integrated_snn_res.1", label = T), file=paste0(path_integr,"integrated_snn_res.1_replication.png"))
+
+ggsave(DimPlot(seurat.integrated_replication, reduction = "umap", group.by = "orig.ident", label = T), file=paste0(path_integr,"integrated_umap_patient_replication.png"))
+
+
+#p2 <- DimPlot(seurat.integrated_replication, reduction = "umap", label = TRUE, repel = TRUE)
+#p1 + p2
+
+```
+
+#### 9. Assigning cell type identity to clusters
+```{r}
+set.seed(123456)
+
+dirs<-list.dirs(path = path_1, recursive = F, full.names = T)
+sample<-gsub(paste0(path_1,"/"),"",dirs)
+sample_discovery<-sample[1:4]
+sample_replication<-sample[5:8]
+path_2<- "/SEURAT/GRAPHICS/"
+
+# The celldex contains a number of curated reference datasets, mostly assembled from bulk RNA-seq or microarray data of sorted cell types. These references are often good enough for most applications provided that they contain the cell types that are expected in the test population. Here, we will use a reference constructed from Blueprint and ENCODE data (Martens and Stunnenberg 2013; The ENCODE Project Consortium 2012); this is obtained by calling the BlueprintEncode() function to construct a SummarizedExperiment containing log-expression values with curated labels for each sample.
+
+ref <- celldex::HumanPrimaryCellAtlasData()
+View(as.data.table(colData(ref)))
+
+# To save a Seurat Object
+# saveRDS(seurat.integrated_replication, file = '../MIQUEL/data_not.join_rep.rds')
+
+# To read a Seurat Object
+# data = readRDS('../MIQUEL/data_not.join.rds')
+
+## Here we will use the JoinLayers() function to join the counts of all my samples, eitherways we will not be able to run this: cadasil_counts <- GetAssayData(seurat.integrated_discovery, slot = "counts")
+
+seurat.integrated_replication = SetIdent(seurat.integrated_replication, value = seurat.integrated_replication$orig.ident)
+seurat.integrated_replication = JoinLayers(seurat.integrated_replication)
+
+DefaultAssay(seurat.integrated_replication) <- "RNA"
+
+cadasil_counts<-GetAssayData(seurat.integrated_replication, slot = "counts")
+
+# Prediction
+pred <- SingleR::SingleR(test=cadasil_counts, 
+                         ref=ref, 
+                         labels=ref$label.main,
+                         assay.type.test=1)
+
+# Visualización
+
+seurat.integrated_replication$singleR.labels<-pred$labels[match(rownames(seurat.integrated_replication@meta.data), rownames(pred))]
+
+ggsave(DimPlot(seurat.integrated_replication, reduction= "umap", group.by = "singleR.labels"), file=paste0(path_integr,"umap_labels_replication.png"))
+
+resumen_cel<-data.table(table(seurat.integrated_replication$singleR.labels))
+resumen_cel$porcentaje<-NA
+for (i in 1:dim(resumen_cel)[1]){
+  resumen_cel$porcentaje[i]<-100*resumen_cel$N[i]/sum(resumen_cel$N)
+}
+
+fwrite(resumen_cel,file = paste0(path_integr,"resumen_cel_integr_replication.txt"), sep = " ", col.names = T, na = NA, quote = F)
+
+# Scores
+corr<-data.table(pred$scores)
+
+fwrite(corr,file =paste0(path_integr,"corr_integr_replication.txt"), quote = F, sep = " ",col.names = T,na=NA)
+
+
+# Correlación con la predicción
+
+png(paste0(path_integr,"heat_corr_replication.png"))
+plotScoreHeatmap(pred)
+dev.off()
+saveRDS(seurat.integrated_replication, file = paste0(path_integr,"seurat_integr_replication.rds"))
+
+```
+
+#### 10. Expresión diferencial
+##### Añadir fenotipo
+```{r}
+seurat.integrated_replication$cad<-NA
+seurat.integrated_replication$cad[seurat.integrated_replication$orig.ident=="SAMPLE_L452"]<-"CAD8"
+seurat.integrated_replication$cad[seurat.integrated_replication$orig.ident=="SAMPLE_L453"]<-"CAD15"
+seurat.integrated_replication$cad[seurat.integrated_replication$orig.ident=="SAMPLE_L454"]<-"CAD31"
+seurat.integrated_replication$cad[seurat.integrated_replication$orig.ident=="SAMPLE_L455"]<-"CAD2"
+seurat.integrated_replication$cad[seurat.integrated_replication$orig.ident=="SAMPLE_L468"]<-"CAD7"
+seurat.integrated_replication$cad[seurat.integrated_replication$orig.ident=="SAMPLE_L469"]<-"CAD9"
+seurat.integrated_replication$cad[seurat.integrated_replication$orig.ident=="SAMPLE_L470"]<-"CAD32"
+seurat.integrated_replication$cad[seurat.integrated_replication$orig.ident=="SAMPLE_L471"]<-"CAD14"
+seurat.integrated_replication$exon<-"good"
+seurat.integrated_replication$exon[seurat.integrated_replication$cad=="CAD2"]<-"bad"
+seurat.integrated_replication$exon[seurat.integrated_replication$cad=="CAD7"]<-"bad"
+seurat.integrated_replication$exon[seurat.integrated_replication$cad=="CAD8"]<-"bad"
+seurat.integrated_replication$exon[seurat.integrated_replication$cad=="CAD9"]<-"bad"
+seurat.integrated_replication$sex<-"male"
+seurat.integrated_replication$sex[seurat.integrated_replication$cad=="CAD2"]<-"female"
+seurat.integrated_replication$sex[seurat.integrated_replication$cad=="CAD9"]<-"female"
+seurat.integrated_replication$sex[seurat.integrated_replication$cad=="CAD15"]<-"female"
+seurat.integrated_replication$sex[seurat.integrated_replication$cad=="CAD32"]<-"female"
+
+seurat.integrated_replication$cognit<-NA
+seurat.integrated_replication$cognit[seurat.integrated_replication$cad=="CAD2"]<-NA
+seurat.integrated_replication$cognit[seurat.integrated_replication$cad=="CAD7"]<-"muy_leve"
+seurat.integrated_replication$cognit[seurat.integrated_replication$cad=="CAD8"]<-"leve"
+seurat.integrated_replication$cognit[seurat.integrated_replication$cad=="CAD9"]<-"normal"
+seurat.integrated_replication$cognit[seurat.integrated_replication$cad=="CAD14"]<-"leve"
+seurat.integrated_replication$cognit[seurat.integrated_replication$cad=="CAD15"]<-"leve"
+seurat.integrated_replication$cognit[seurat.integrated_replication$cad=="CAD31"]<-"muy_leve"
+seurat.integrated_replication$cognit[seurat.integrated_replication$cad=="CAD32"]<-"leve"
+```
+
+##### ENDOTELIO
+```{r}
+set.seed(123456)
+
+dirs<-list.dirs(path = path_1, recursive = F, full.names = T)
+sample<-gsub(paste0(path_1,"/"),"",dirs)
+sample_replication<-sample[1:4]
+sample_replication<-sample[5:8]
+path_2<- "/SEURAT/GRAPHICS/"
+
+theme_set(theme_cowplot())
+endotelio <- subset(seurat.integrated_replication, idents = )
+Idents(seurat.integrated_replication) <- "singleR.labels" 
+cell_values <- c("Endothelial_cells")
+endotelio<-subset(seurat.integrated_replication, idents = cell_values, invert = FALSE)
+
+Idents(endotelio) <- "exon"
+avg.endotelio <- as.data.frame(log1p(AverageExpression(endotelio, verbose = FALSE)$RNA))
+
+avg.endotelio$gene <- rownames(avg.endotelio)
+
+# EXON
+Idents(endotelio)<-"exon"
+diferencias <- FindMarkers(endotelio, ident.1 = "good", ident.2 = "bad")
+p.aj<-0.05/dim(diferencias)[1]
+diferencias$diferencias_sign<-"no signif"
+diferencias$diferencias_sign[diferencias$p_val_adj<0.05]<-"signif"
+diferencias$diferencias_sign[abs(diferencias$avg_log2FC)>2&diferencias$p_val_adj<0.05]<-"imp"
+
+fwrite(diferencias,file = paste0(path_integr,"expres_endot_exon_replication.txt"),quote = F, sep = "\t", col.names = T, row.names = T)
+p1<- ggplot(data=diferencias, aes(x=avg_log2FC, y=-log10(p_val),col = diferencias_sign )) + 
+  geom_point() + 
+  ggtitle("Differences in expression in endothelial cells according to mutation location") +
+  geom_point(size = 2) + 
+  scale_color_manual(values = c("#956DA0","grey","#E79D5D")) 
+
+ggsave(filename = paste0(path_integr,"volcano_endot_exon_replication.png"),p1)
+
+# SEXO
+Idents(endotelio)<-"sex"
+diferencias <- FindMarkers(endotelio, ident.1 = "male", ident.2 = "female")
+diferencias$diferencias_sign<-"no signif"
+diferencias$diferencias_sign[diferencias$p_val_adj<0.05]<-"signif"
+diferencias$diferencias_sign[abs(diferencias$avg_log2FC)>2&diferencias$p_val_adj<0.05]<-"imp"
+
+fwrite(diferencias,file = paste0(path_integr,"expres_endot_sex_replication.txt"),quote = F, sep = "\t", col.names = T, row.names = T)
+
+p1<- ggplot(data=diferencias, aes(x=avg_log2FC, y=-log10(p_val),col = diferencias_sign )) + 
+  geom_point() + 
+  ggtitle("Differences in expression in endothelial cells according to sex") +
+  geom_point(size = 2) + 
+  scale_color_manual(values = c("#956DA0","grey","#E79D5D")) 
+
+ggsave(filename = paste0(path_integr,"volcano_endot_sex_replication.png"),p1)
+
+# COGNICIÓN
+Idents(endotelio)<-"cognit"
+diferencias <- FindMarkers(endotelio, ident.1 = "leve")
+diferencias$diferencias_sign<-"no signif"
+diferencias$diferencias_sign[diferencias$p_val_adj<0.05]<-"signif"
+diferencias$diferencias_sign[abs(diferencias$avg_log2FC)>2&diferencias$p_val_adj<0.05]<-"imp"
+
+fwrite(diferencias,file = paste0(path_integr,"expres_endot_cognit_replication.txt"),quote = F, sep = "\t", col.names = T, row.names = T)
+
+p1<- ggplot(data=diferencias, aes(x=avg_log2FC, y=-log10(p_val),col = diferencias_sign )) + 
+  geom_point() + 
+  ggtitle("Differences in expression in endothelial cells according to cognitive impairment") +
+  geom_point(size = 2) + 
+  scale_color_manual(values = c("#956DA0","grey","#E79D5D")) 
+
+ggsave(filename = paste0(path_integr,"volcano_endot_cognit_replication.png"),p1)
+#p1 <- ggplot(avg.endotelio, aes(CTRL, STIM)) + geom_point() + ggtitle("CD4 Naive T Cells")
+#
+#p2 <- ggplot(avg.cd14.mono, aes(CTRL, STIM)) + geom_point() + ggtitle("CD14 Monocytes")
+#p2 <- LabelPoints(plot = p2, points = genes.to.label, repel = TRUE)
+#p1 + p2
+```
+
+##### VSMC
+```{r}
+set.seed(123456)
+
+dirs<-list.dirs(path = path_1, recursive = F, full.names = T)
+sample<-gsub(paste0(path_1,"/"),"",dirs)
+sample_replication<-sample[1:4]
+sample_replication<-sample[5:8]
+path_2<- "/SEURAT/GRAPHICS/"
+
+theme_set(theme_cowplot())
+Idents(seurat.integrated_replication) <- "singleR.labels" 
+cell_values <- c("Smooth_muscle_cells")
+vsmc<-subset(seurat.integrated_replication, idents = cell_values, invert = FALSE)
+
+Idents(vsmc) <- "exon"
+avg.vsmc <- as.data.frame(log1p(AverageExpression(vsmc, verbose = FALSE)$RNA))
+
+avg.vsmc$gene <- rownames(avg.vsmc)
+
+# EXON
+Idents(vsmc)<-"exon"
+diferencias <- FindMarkers(vsmc, ident.1 = "good", ident.2 = "bad")
+p.aj<-0.05/dim(diferencias)[1]
+diferencias$diferencias_sign<-"no signif"
+diferencias$diferencias_sign[diferencias$p_val_adj<0.05]<-"signif"
+diferencias$diferencias_sign[abs(diferencias$avg_log2FC)>2&diferencias$p_val_adj<0.05]<-"imp"
+
+fwrite(diferencias,file = paste0(path_integr,"expres_vsmc_exon_replication.txt"),quote = F, sep = "\t", col.names = T, row.names = T)
+p1<- ggplot(data=diferencias, aes(x=avg_log2FC, y=-log10(p_val),col = diferencias_sign )) + 
+  geom_point() + 
+  ggtitle("Differences in expression in VSMC cells according to mutation location") +
+  geom_point(size = 2) + 
+  scale_color_manual(values = c("#956DA0","grey","#E79D5D")) 
+
+ggsave(filename = paste0(path_integr,"volcano_vsmc_exon_replication.png"),p1)
+
+# SEXO
+Idents(vsmc)<-"sex"
+diferencias <- FindMarkers(vsmc, ident.1 = "male", ident.2 = "female")
+diferencias$diferencias_sign<-"no signif"
+diferencias$diferencias_sign[diferencias$p_val_adj<0.05]<-"signif"
+diferencias$diferencias_sign[abs(diferencias$avg_log2FC)>2&diferencias$p_val_adj<0.05]<-"imp"
+
+fwrite(diferencias,file = paste0(path_integr,"expres_vsmc_sex_replication.txt"),quote = F, sep = "\t", col.names = T, row.names = T)
+
+p1<- ggplot(data=diferencias, aes(x=avg_log2FC, y=-log10(p_val),col = diferencias_sign )) + 
+  geom_point() + 
+  ggtitle("Differences in expression in VSMC cells according to sex") +
+  geom_point(size = 2) + 
+  scale_color_manual(values = c("#956DA0","grey","#E79D5D")) 
+
+ggsave(filename = paste0(path_integr,"volcano_vsmc_sex_replication.png"),p1)
+
+# COGNICIÓN
+Idents(vsmc)<-"cognit"
+diferencias <- FindMarkers(vsmc, ident.1 = "leve")
+diferencias$diferencias_sign<-"no signif"
+diferencias$diferencias_sign[diferencias$p_val_adj<0.05]<-"signif"
+diferencias$diferencias_sign[abs(diferencias$avg_log2FC)>2&diferencias$p_val_adj<0.05]<-"imp"
+
+fwrite(diferencias,file = paste0(path_integr,"expres_vsmc_cognit_replication.txt"),quote = F, sep = "\t", col.names = T, row.names = T)
+
+p1<- ggplot(data=diferencias, aes(x=avg_log2FC, y=-log10(p_val),col = diferencias_sign )) + 
+  geom_point() + 
+  ggtitle("Differences in expression in VSMC cells according to cognitive impairment") +
+  geom_point(size = 2) + 
+  scale_color_manual(values = c("#956DA0","grey","#E79D5D")) 
+
+ggsave(filename = paste0(path_integr,"volcano_vsmc_cognit_replication.png"),p1)
+```
+# JOINT
+#### 9. Assigning cell type identity to clusters
+```{r}
+set.seed(123456)
+
+# Merge the four samples
+seurat.integrated_JOINT <- merge(x = discovery, y = replication,
+                           add.cell.ids = c("discovery", "replication"))
+
+dirs<-list.dirs(path = path_1, recursive = F, full.names = T)
+sample<-gsub(paste0(path_1,"/"),"",dirs)
+sample_JOINT<-sample[1:4]
+sample_JOINT<-sample[5:8]
+path_2<- "/SEURAT/GRAPHICS/"
+path_integr<-"single_cell/INTEGRATION/JOINT/"
+
+# The celldex contains a number of curated reference datasets, mostly assembled from bulk RNA-seq or microarray data of sorted cell types. These references are often good enough for most applications provided that they contain the cell types that are expected in the test population. Here, we will use a reference constructed from Blueprint and ENCODE data (Martens and Stunnenberg 2013; The ENCODE Project Consortium 2012); this is obtained by calling the BlueprintEncode() function to construct a SummarizedExperiment containing log-expression values with curated labels for each sample.
+
+ref <- celldex::HumanPrimaryCellAtlasData()
+View(as.data.table(colData(ref)))
+
+# To save a Seurat Object
+# saveRDS(seurat.integrated_JOINT, file = '../MIQUEL/single_cell/INTEGRATION/JOINT/data_not.join_joint.rds')
+
+# To read a Seurat Object
+# data = readRDS('../MIQUEL/data_not.join.rds')
+
+## Here we will use the JoinLayers() function to join the counts of all my samples, eitherways we will not be able to run this: cadasil_counts <- GetAssayData(seurat.integrated_discovery, slot = "counts")
+
+seurat.integrated_JOINT = SetIdent(seurat.integrated_JOINT, value = seurat.integrated_JOINT$orig.ident)
+seurat.integrated_JOINT = JoinLayers(seurat.integrated_JOINT)
+
+DefaultAssay(seurat.integrated_JOINT) <- "RNA"
+cadasil_counts<-GetAssayData(seurat.integrated_JOINT, slot = "counts")
+
+# Prediction
+pred <- SingleR::SingleR(test=cadasil_counts, 
+                         ref=ref, 
+                         labels=ref$label.main,
+                         assay.type.test=1)
+
+seurat.integrated_JOINT<-ScaleData(object = seurat.integrated_JOINT)
+seurat.integrated_JOINT<-RunPCA(object = seurat.integrated_JOINT)
+
+ggsave(ElbowPlot(seurat.integrated_JOINT), file=paste0(path_integr,"common_elbow_integrated_joint.png"))
+
+seurat.integrated_JOINT<-RunUMAP(object = seurat.integrated_JOINT, dims=1:15)
+
+ggsave(DimPlot(seurat.integrated_JOINT, reduction = "umap", group.by = "orig.ident"), file=paste0(path_integr,"umap_integrated_bypatient_joint.png"))
+
+# Visualización
+
+seurat.integrated_JOINT$singleR.labels<-pred$labels[match(rownames(seurat.integrated_JOINT@meta.data), rownames(pred))]
+
+seurat.integrated_JOINT$etiquetas<-"Others"
+seurat.integrated_JOINT$etiquetas[seurat.integrated_JOINT$singleR.labels=="Smooth_muscle_cells"]<-"Smooth_muscle_cells"
+seurat.integrated_JOINT$etiquetas[seurat.integrated_JOINT$singleR.labels=="Endothelial_cells"]<-"Endothelial_cells"
+
+ggsave(DimPlot(seurat.integrated_JOINT, reduction= "umap", group.by = "singleR.labels"), file=paste0(path_integr,"umap_labels_JOINT.png"))
+
+ggsave(DimPlot(seurat.integrated_JOINT, reduction= "umap", group.by = "etiquetas"), file=paste0(path_integr,"umap_etiquetas_JOINT.png"))
+
+resumen_cel<-data.table(table(seurat.integrated_JOINT$singleR.labels))
+resumen_cel$porcentaje<-NA
+for (i in 1:dim(resumen_cel)[1]){
+  resumen_cel$porcentaje[i]<-100*resumen_cel$N[i]/sum(resumen_cel$N)
+}
+
+fwrite(resumen_cel,file = paste0(path_integr,"resumen_cel_integr_JOINT.txt"), sep = " ", col.names = T, na = NA, quote = F)
+
+# Scores
+corr<-data.table(pred$scores)
+
+fwrite(corr,file =paste0(path_integr,"corr_integr_JOINT.txt"), quote = F, sep = " ",col.names = T,na=NA)
+
+
+# Correlación con la predicción
+
+png(paste0(path_integr,"heat_corr_JOINT.png"))
+plotScoreHeatmap(pred)
+dev.off()
+saveRDS(seurat.integrated_JOINT, file = paste0(path_integr,"seurat_integr_JOINT.rds"))
+  
+```
+## Valoración
+```{r}
+seurat.integrated_JOINT$cad<-NA
+seurat.integrated_JOINT$cad[seurat.integrated_JOINT$orig.ident=="SAMPLE_L452"]<-"CAD8"
+seurat.integrated_JOINT$cad[seurat.integrated_JOINT$orig.ident=="SAMPLE_L453"]<-"CAD15"
+seurat.integrated_JOINT$cad[seurat.integrated_JOINT$orig.ident=="SAMPLE_L454"]<-"CAD31"
+seurat.integrated_JOINT$cad[seurat.integrated_JOINT$orig.ident=="SAMPLE_L455"]<-"CAD2"
+seurat.integrated_JOINT$cad[seurat.integrated_JOINT$orig.ident=="SAMPLE_L468"]<-"CAD7"
+seurat.integrated_JOINT$cad[seurat.integrated_JOINT$orig.ident=="SAMPLE_L469"]<-"CAD9"
+seurat.integrated_JOINT$cad[seurat.integrated_JOINT$orig.ident=="SAMPLE_L470"]<-"CAD32"
+seurat.integrated_JOINT$cad[seurat.integrated_JOINT$orig.ident=="SAMPLE_L471"]<-"CAD14"
+seurat.integrated_JOINT$exon<-"good"
+seurat.integrated_JOINT$exon[seurat.integrated_JOINT$cad=="CAD2"]<-"bad"
+seurat.integrated_JOINT$exon[seurat.integrated_JOINT$cad=="CAD7"]<-"bad"
+seurat.integrated_JOINT$exon[seurat.integrated_JOINT$cad=="CAD8"]<-"bad"
+seurat.integrated_JOINT$exon[seurat.integrated_JOINT$cad=="CAD9"]<-"bad"
+seurat.integrated_JOINT$sex<-"male"
+seurat.integrated_JOINT$sex[seurat.integrated_JOINT$cad=="CAD2"]<-"female"
+seurat.integrated_JOINT$sex[seurat.integrated_JOINT$cad=="CAD9"]<-"female"
+seurat.integrated_JOINT$sex[seurat.integrated_JOINT$cad=="CAD15"]<-"female"
+seurat.integrated_JOINT$sex[seurat.integrated_JOINT$cad=="CAD32"]<-"female"
+
+seurat.integrated_JOINT$cognit<-NA
+seurat.integrated_JOINT$cognit[seurat.integrated_JOINT$cad=="CAD2"]<-NA
+seurat.integrated_JOINT$cognit[seurat.integrated_JOINT$cad=="CAD7"]<-"muy_leve"
+seurat.integrated_JOINT$cognit[seurat.integrated_JOINT$cad=="CAD8"]<-"leve"
+seurat.integrated_JOINT$cognit[seurat.integrated_JOINT$cad=="CAD9"]<-"normal"
+seurat.integrated_JOINT$cognit[seurat.integrated_JOINT$cad=="CAD14"]<-"leve"
+seurat.integrated_JOINT$cognit[seurat.integrated_JOINT$cad=="CAD15"]<-"leve"
+seurat.integrated_JOINT$cognit[seurat.integrated_JOINT$cad=="CAD31"]<-"muy_leve"
+seurat.integrated_JOINT$cognit[seurat.integrated_JOINT$cad=="CAD32"]<-"leve"
+
+
+theme_set(theme_cowplot())
+Idents(seurat.integrated_JOINT) <- "singleR.labels" 
+cell_values <- c("Smooth_muscle_cells")
+
+vsmc <- subset(seurat.integrated_JOINT, idents = cell_values, invert = FALSE)
+
+Idents(vsmc) <- "cognit"
+levels(vsmc)
+avg.cognit <- FindMarkers(vsmc, ident.1 = "leve", ident.2 = "muy_leve", ident.3 = "normal")
+write.csv(avg.cognit, file = 'single_cell/INTEGRATION/JOINT/markers_cognit.csv')
+
+JOINT_vsmc_cognit_signif<-avg.cognit[avg.cognit$p_val_adj<0.05,]
+JOINT_vsmc_cognit_signif<-JOINT_vsmc_cognit_signif[order(abs(JOINT_vsmc_cognit_signif$avg_log2FC),decreasing=T),]
+#View(JOINT_vsmc_cognit_signif)
+#JOINT_vsmc_cognit_signif$V1 # significant genes?
+JOINT_vsmc_cognit_signif$V1 = rownames(JOINT_vsmc_cognit_signif) # specific markers?? ROWNAMES()!!!!!
+write.csv(JOINT_vsmc_cognit_signif, file = 'single_cell/INTEGRATION/JOINT/significat_markers_cognit.csv')
+
+
+Idents(vsmc) <- "exon"
+levels(vsmc)
+avg.exon <- FindMarkers(vsmc, ident.1 = "good", ident.2 = "bad")
+write.csv(avg.exon, file = 'single_cell/INTEGRATION/JOINT/markers_exon.csv')
+
+JOINT_vsmc_exon_signif<-avg.exon[avg.exon$p_val_adj<0.05,]
+JOINT_vsmc_exon_signif<-JOINT_vsmc_exon_signif[order(abs(JOINT_vsmc_exon_signif$avg_log2FC),decreasing=T),]
+#View(JOINT_vsmc_exon_signif)
+#JOINT_vsmc_exon_signif$V1 # significant genes?
+JOINT_vsmc_exon_signif$V1 = rownames(JOINT_vsmc_exon_signif) # specific markers?? ROWNAMES()!!!!!
+write.csv(JOINT_vsmc_exon_signif, file = 'single_cell/INTEGRATION/JOINT/significat_markers_exon.csv')
+
+
+Idents(vsmc) <- "sex"
+levels(vsmc)
+avg.sex <- FindMarkers(vsmc, ident.1 = "male", ident.2 = "female")
+write.csv(avg.sex, file = 'single_cell/INTEGRATION/JOINT/markers_sex.csv')
+
+JOINT_vsmc_sex_signif<-avg.sex[avg.sex$p_val_adj<0.05,]
+JOINT_vsmc_sex_signif<-JOINT_vsmc_sex_signif[order(abs(JOINT_vsmc_sex_signif$avg_log2FC),decreasing=T),]
+#View(JOINT_vsmc_sex_signif)
+#JOINT_vsmc_sex_signif$V1 # significant genes?
+JOINT_vsmc_sex_signif$V1 = rownames(JOINT_vsmc_sex_signif) # specific markers?? ROWNAMES()!!!!!
+write.csv(JOINT_vsmc_sex_signif, file = 'single_cell/INTEGRATION/JOINT/significat_markers_sex.csv')
+
+```
+
+# VALIDACIÓN
+```{r}
+set.seed(123456)
+
+dirs<-list.dirs(path = path_1, recursive = F, full.names = T)
+sample<-gsub(paste0(path_1,"/"),"",dirs)
+sample_replication<-sample[1:4]
+sample_replication<-sample[5:8]
+path_2<- "/SEURAT/GRAPHICS/"
+path_integr<-"single_cell/INTEGRATION/"
+
+#remotes::install_github("tanaylab/tgutil")
+discovery_exon<-fread(paste0(path_integr,"DISCOVERY/expres_endot_exon_discovery.txt"), sep = "\t",header = T)
+
+discovery_sex<-fread(paste0(path_integr,"DISCOVERY/expres_endot_sex_discovery.txt"), sep = "\t",header = T)
+
+discovery_cognit<-fread(paste0(path_integr,"DISCOVERY/expres_endot_cognit_discovery.txt"), sep = "\t",header = T)
+
+replication_exon<-fread(paste0(path_integr,"REPLICATION/expres_endot_exon_replication.txt"), sep = "\t",header = T)
+
+replication_sex<-fread(paste0(path_integr,"REPLICATION/expres_endot_sex_replication.txt"), sep = "\t",header = T)
+
+replication_cognit<-fread(paste0(path_integr,"REPLICATION/expres_endot_cognit_replication.txt"), sep = "\t",header = T)
+
+edad_normal<-c(55,49,51,61)
+mean(edad_normal)
+sd(edad_normal)
+edad_leve<-c(50,55,60,55)
+mean(edad_leve)
+sd(edad_leve)
+
+edad_exongood<-c(55,49,50,51)
+mean(edad_exongood)
+sd(edad_exongood)  
+edad_exonbad<-c(55,60,61,55)
+mean(edad_exonbad)
+sd(edad_exonbad)
+
+```
+## Merge
+```{r}
+merge_exon<-merge(discovery_exon,replication_exon, by="V1", all=T)
+merge_exon<-merge_exon[order(merge_exon$p_val_adj.x),]
+exon_sign<-merge_exon[which(merge_exon$p_val_adj.x<0.05),]
+
+merge_sex<-merge(discovery_sex,replication_sex, by="V1", all=T)
+merge_sex<-merge_sex[order(merge_sex$p_val_adj.x),]
+sex_sign<-merge_sex[which(merge_sex$p_val_adj.x<0.05),]
+
+merge_cognit<-merge(discovery_cognit,replication_cognit, by="V1", all=T)
+merge_cognit<-merge_cognit[order(merge_cognit$p_val_adj.x),]
+cognit_sign<-merge_cognit[which(merge_cognit$p_val_adj.x<0.05),]
+
+
+data.table::fwrite(merge_exon, file = paste0(path_integr,"validacion_exon.txt"),sep="\t", col.names =T, na=NA)
+
+data.table::fwrite(merge_sex, file = paste0(path_integr,"validacion_sex.txt"),sep="\t", col.names =T, na=NA)
+
+data.table::fwrite(merge_cognit, file = paste0(path_integr,"validacion_cognit.txt"),sep="\t", col.names =T, na=NA)
+```

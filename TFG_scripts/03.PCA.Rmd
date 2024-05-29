@@ -1,0 +1,251 @@
+---
+title: "03.PCA_Merge_003_005_006"
+author: "Miquel"
+date: "2024-02-27"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(data.table)
+library(dplyr)
+library(tidyr)
+library(h2o)
+library(readxl)
+library(readr)
+library(biomaRt)
+library(readxl)
+library(tidyverse)
+library(gdsfmt)
+library (SNPRelate)
+library(scatterplot3d)
+library(plyr)
+library(geneplotter)
+library(UsingR)
+library(reshape2)
+library(gdsfmt)
+library(SNPRelate)
+```
+```{r}
+aaaa <- fread("/home/stroke/Documentos/Miquel_Gallardo/real_data/data/imputed_data/Merged_003_005_006_clean.fam")
+aaaa$V1 <- gsub("\\.CEL", "", aaaa$V1)
+aaaa$V2 <- gsub("\\.CEL", "", aaaa$V2)
+write.table(aaaa, "/home/stroke/Documentos/Miquel_Gallardo/real_data/data/imputed_data/Merged_003_005_006_clean.fam", quote = F, col.names = F, row.names = F)
+```
+
+# Save ids with collateral info in a txt.
+```{r}
+
+at_least_one_not_na <- function(row){
+  any(!is.na(row))
+}
+
+print(colSums(!is.na(final_all[, c(51,54,400,401)])))
+
+row_ind <- apply(final_all[, c(51,54,400,401)], 1, at_least_one_not_na)
+
+subset_df <- final_all[row_ind,]
+
+ids_colliseum <- data.frame(subset_df$V1, subset_df$V1)
+
+write.table(ids_colliseum, "/home/stroke/Documentos/Miquel_Gallardo/real_data/data/imputed_data/ids_coliseum_ext.txt", row.names = F, quote = F, col.names = F)
+```
+
+#From fam Merge_003_005_006_clean i extract the ids from the previous txt with plink and i create a bed bim fam only with collaterals information 
+```{bash}
+cd /home/stroke/Documentos/Miquel_Gallardo/real_data/data/imputed_data/
+plink --bfile Merged_003_005_006_clean --keep ids_coliseum_ext.txt --make-bed --out just_collaterals_info
+```
+
+```{bash}
+declare path="/home/stroke/Documentos/Miquel_Gallardo/real_data/data"
+
+plink --bfile $path/imputed_data/just_collaterals_info --geno 0 --maf 0.1 --indep-pairwise 50 5 0.2  --out $path/PCA/just_collaterals_info_indepSNPs
+
+plink --bfile $path/imputed_data/just_collaterals_info  --extract $path/PCA/Merged_003_005_006_indepSNPs.prune.in --make-bed --out $path/PCA/just_collaterals_info_indepGENO0
+```
+
+## Calculate PCA
+```{r}
+
+set.seed(33)
+
+dir <- paste0("/home/stroke/Documentos/Miquel_Gallardo/real_data/data/PCA")
+
+# convert PLINK to gds
+
+bed.fn <- paste0(dir,"/just_collaterals_info_indepGENO0.bed")
+bim.fn <- paste0(dir,"/just_collaterals_info_indepGENO0.bim")
+fam.fn <- paste0(dir,"/just_collaterals_info_indepGENO0.fam")
+fam <- fread(paste0(dir,"/just_collaterals_info_indepGENO0.fam"))
+
+# convert
+snpgdsBED2GDS(bed.fn, fam.fn, bim.fn, paste0(dir,"/just_collaterals_info_indepGENO0.gds")) 
+
+# SUMMARY
+snpgdsSummary(paste0(dir,"/just_collaterals_info_indepGENO0.gds"))
+
+# Open the GDS file
+genofile <- snpgdsOpen(paste0(dir,"/just_collaterals_info_indepGENO0.gds"))
+
+#genofile <- snpgdsOpen(paste0(dir,"/NoFam_",cohortes_joint[i],"_clean_GENO0.gds"))
+#LD-based SNP pruning
+#maf 5%, missing 5%, sliding window 10 MB, ld <0.1
+
+snpset <- snpgdsLDpruning(genofile, sample.id = NULL, snp.id = NULL, autosome.only =
+TRUE, remove.monosnp = TRUE, maf = 0.05, missing.rate = 0.05, method = "corr",
+slide.max.bp = 10e6, ld.threshold = sqrt(0.1), num.thread = 1, verbose = TRUE)
+names(snpset)
+
+#snp.id
+head(snpset$chr1)
+
+# get all selected SNP ids
+snp.id <- unlist(snpset)
+length(snp.id)
+
+## Principal Components Analysis
+#get sample id
+head(read.gdsn(index.gdsn(genofile, "sample.id")))
+sample.id <- (read.gdsn(index.gdsn(genofile, "sample.id")))
+
+# Run PCA
+pca <- snpgdsPCA(genofile, sample.id = sample.id, snp.id = snp.id) 
+eigenval_new <- head(pca$eigenval,32)
+
+# variance proportion
+variance<-(eigenval_new / sum(eigenval_new)*100)
+var<-head (variance, n=32)
+
+  pdf(paste0(dir,"/just_collaterals_info_indepGENO0.pdf"), height = 8, width = 8)
+  plot(var[1:32], main="Variance explained imputed PC1-32")
+  dev.off()
+
+# make a data.frame
+write.table(var, file=paste0(dir,"/PCAimputed_variance_just_collaterals_info_indepGENO0.txt"), sep="\t", col.names = T, row.names = F, quote = F)
+
+# make a data.frame
+pcs <- cbind(fam[,1:2],pca$sample.id, pca$eigenvect)
+colnames(pcs) <- c("FID","IID","IDpca",paste0("EV",1:32))
+
+write.table(pcs, file=paste0(dir,"/PCAimputed_evs_just_collaterals_info_indepGENO0.txt"), sep="\t", col.names = T, row.names = F, quote = F)
+```
+
+
+### EV 1-3 -- Adapt the cohort
+```{r}
+# Plot imputados
+fam1 <- fread("/home/stroke/Documentos/Miquel_Gallardo/real_data/data/imputed_data/just_collaterals_info.fam")
+#create genotype column 
+fam1 <- mutate(fam1, genotipado = case_when(
+  startsWith(V1, "ASB003")~1,
+  startsWith(V1, "ASB005")~2,
+  TRUE~3
+  ))
+```
+
+```{r}
+pcs2 <- separate(pcs ,col = "IDpca",into = c("numero","ID"),sep = "_")
+pcs3 <- fam1[,c(1:2,7)]
+
+
+fam_pcs_imputed<- merge(pcs3, pcs2, by.x="V2", by.y="IID")
+
+
+png(filename="/home/stroke/Documentos/Miquel_Gallardo/real_data/data/PCA/PCA_show.png")
+colors =  c("#FFE882","#4DC4CC", "red")
+colors <- colors[as.numeric(fam_pcs_imputed$genotipado)]
+#shapes<-c(15:18)
+s3d<-scatterplot3d(x= pcs$EV1,
+                   y = pcs$EV2,
+                   z = pcs$EV3,
+                   main="PCA imputed",
+                   xlab = "EV1",
+                   ylab = "EV2",
+                   zlab = "EV3",
+                   color = colors,
+                   pch=20)
+legend("topright", legend=c("Tanda 1", "Tanda 2", "Tanda 3"),
+      col =  c("#FFE882","#4DC4CC", "red"), pch = 20)
+dev.off()
+```
+```{r}
+f2 <- fam1
+
+f2 <- left_join(f2, final_all[,c("V1", "CSdicotom_Brainomix.x")], by=("V1"="V1"))
+
+df2 <- na.omit(f2)
+
+
+ppcs <- pcs %>%
+  filter(IID%in%df2$V1)
+```
+
+```{r}
+pcs2 <- separate(ppcs ,col = "IDpca",into = c("numero","ID"),sep = "_")
+pcs3 <- df2[,c(1:2,8)]
+
+
+fam_pcs_imputed<- merge(pcs3, pcs2, by.x="V2", by.y="IID")
+
+fam_pcs_imputed$CSdicotom_Brainomix[fam_pcs_imputed$CSdicotom_Brainomix == 0]<-2
+
+png(filename="/home/stroke/Documentos/Miquel_Gallardo/real_data/data/PCA/PCA2_show.png")
+colors =  c("#FFE882","#4DC4CC")
+colors <- colors[as.numeric(fam_pcs_imputed$CSdicotom_Brainomix)]
+#shapes<-c(15:18)
+s3d<-scatterplot3d(x= ppcs$EV1,
+                   y = ppcs$EV2,
+                   z = ppcs$EV3,
+                   main="PCA Buenas Vs Malas (Brainomix)",
+                   xlab = "EV1",
+                   ylab = "EV2",
+                   zlab = "EV3",
+                   color = colors,
+                   pch=20)
+legend("topright", legend=levels(as.factor(fam_pcs_imputed$CSdicotom_Brainomix)),
+      col =  c("#FFE882","#4DC4CC"), pch = 20)
+dev.off()
+```
+
+```{r}
+f3 <- fam1
+
+f3 <- left_join(f3, final_all[,c("V1", "CSdicotom_Quino_JP(0:malas 0-1; 1:buenas 2-3).x")], by=("V1"="V1"))
+
+df3 <- na.omit(f3)
+
+
+ppcs2 <- pcs %>%
+  filter(IID%in%df3$V1)
+```
+
+```{r}
+pcs2 <- separate(ppcs2 ,col = "IDpca",into = c("numero","ID"),sep = "_")
+pcs3 <- df3[,c(1:2,8)]
+
+
+fam_pcs_imputed<- merge(pcs3, pcs2, by.x="V2", by.y="IID")
+
+fam_pcs_imputed$`CSdicotom_Quino_JP(0:malas 0-1; 1:buenas 2-3)`[fam_pcs_imputed$`CSdicotom_Quino_JP(0:malas 0-1; 1:buenas 2-3)` == 0]<-2
+
+png(filename="/home/stroke/Documentos/Miquel_Gallardo/real_data/data/PCA/PCA3_show.png")
+colors =  c("#FFE882","#4DC4CC")
+colors <- colors[as.numeric(fam_pcs_imputed$`CSdicotom_Quino_JP(0:malas 0-1; 1:buenas 2-3)`)]
+#shapes<-c(15:18)
+s3d<-scatterplot3d(x= ppcs2$EV1,
+                   y = ppcs2$EV2,
+                   z = ppcs2$EV3,
+                   main="PCA Buenas Vs Malas (Neuros)",
+                   xlab = "EV1",
+                   ylab = "EV2",
+                   zlab = "EV3",
+                   color = colors,
+                   pch=20)
+legend("topright", legend=levels(as.factor(fam_pcs_imputed$`CSdicotom_Quino_JP(0:malas 0-1; 1:buenas 2-3)`)),
+      col =  c("#FFE882","#4DC4CC"), pch = 20)
+dev.off()
+```

@@ -1,0 +1,397 @@
+---
+title: "PWAS"
+author: "Miquel"
+date: '2024-05-1'
+output: html_document
+---
+
+# 1) Inicio
+## Cargar paquetes
+```{r}
+library(data.table)
+library(R.utils)
+library(reshape2)
+library(tidyr)
+library(plyr)
+library(bigsnpr)
+library(coloc)
+```
+
+## Crear objetos recurrentes
+```{r}
+trait<-"CMB_strictlylobar_withexclusions"
+ruta<-"/media/stroke/Almacen/NAS/GENETICA/Datos/SUMMARIES/"
+analisis<-"/media/stroke/Almacen/NAS/GENETICA/analisis/PWAS/"
+```
+https://www.niagads.org/system/tdf/public_docs/NG00029_ROSMAP_README.txt?file=1&type=field_collection_item&id=115&force=
+
+# 2) PWAS
+### Crear carpetas
+```{bash}
+
+declare trait="CMB_strictlylobar_withexclusions"
+declare analisis="/media/stroke/Almacen/NAS/GENETICA/analisis/PWAS/"
+declare cohorte="ROSMAP"
+
+mkdir $analisis/$trait
+```
+## ROSMAP
+### Crear carpetas
+```{bash}
+
+declare trait="CMB_strictlylobar_withexclusions"
+declare analisis="/media/stroke/Almacen/NAS/GENETICA/analisis/PWAS/"
+declare cohorte="ROSMAP"
+
+mkdir $analisis/$trait/$cohorte
+mkdir $analisis/$trait/$cohorte/joint
+```
+### Análisis
+```{bash}
+declare data="/media/stroke/Almacen/NAS/GENETICA/Datos/SUMMARIES/6.IMPUTED_SUMMARIES/"
+declare trait="CMB_strictlylobar_withexclusions"
+declare programa="/media/stroke/Almacen/NAS/GENETICA/programas/FUSION/"
+declare weights="/media/stroke/Almacen/NAS/GENETICA/Datos/eQTL/ROSMAP/"
+declare ldref="/media/stroke/Almacen/NAS/GENETICA/Datos/1000G/LDREF/"
+declare analisis="/media/stroke/Almacen/NAS/GENETICA/analisis/PWAS/"
+declare cohorte="ROSMAP"
+
+for a in $(seq 1 22); do Rscript $programa/FUSION.assoc_test.R \
+--sumstats $data/$trait/union_imputed.${trait}.gz \
+--weights $weights/train_weights.pos \
+--weights_dir $weights/ \
+--ref_ld_chr $ldref/1000G.EUR. \
+--chr ${a} \
+--out $analisis/$trait/$cohorte/pwas_${cohorte}_${trait}_hg19_chr${a}.dat; done
+```
+### Cargar resultados
+
+```{r}
+analisis<-"/media/stroke/Almacen/NAS/GENETICA/analisis/PWAS/"
+cohorte="ROSMAP"
+
+#trait<-"ICH_SAIGE_UKBB"
+
+files_txt <- list.files(path = paste0(analisis,trait,"/",cohorte,"/"), pattern = "*.dat", full.names = T)
+tbl_txt<- lapply(files_txt, fread) 
+names_txt<-data.table(files_txt)
+names_txt<-separate(names_txt,col="files_txt",into=c("a","b"),sep = ".dat")
+names_txt<-separate(names_txt,col="a",into=c("a","b"),sep = "//")
+names(tbl_txt)<-names_txt[,b]
+
+# Unir todas las features
+twas_v8<-ldply(tbl_txt, data.table)
+
+twas<-twas_v8[order(twas_v8$TWAS.P),]
+twas<-twas[!is.na(twas$BEST.GWAS.ID),]
+adjusted_p<-0.05/dim(twas)[1]
+
+
+# Escoger los significativos
+twas_sig<-twas[twas$TWAS.P<adjusted_p,]
+#twas_sig<-twas_sig[!is.na(twas_sig$.id),]
+# twas_sig<-twas_sig[,c(24,6,21,22,3,25:26,9:15,19:20,5),]
+twas_sig<-twas_sig[order(twas_sig$TWAS.P),]
+
+# Conocer cuantos genes únicos hay seleccionando de cada gen el mejor p-value
+twas_sig_uniq<-twas_sig %>%
+    dplyr::group_by(ID) %>%
+    dplyr::slice(which.min(TWAS.P))
+```
+
+
+```{r}
+# Unir ID ensembl con símbolo del gen. Se necesita paquete annotable
+twas$ensem<-twas$ID
+twas2<-twas %>% 
+  separate(ensem,c("ensem","lala"),"\\.") #Hay que poner \\ para que interprete el . como un caracter
+symbol<-grch38[,c(1,3,8,9)]
+symbol<-symbol %>%
+    dplyr::group_by(ensgene) %>%
+    dplyr::slice(1) 
+twas<-merge(twas2,symbol, by.x="ensem", by.y="ensgene",all.x = T)
+twas<-twas[,c(24,6,21,22,3,25:26,9:15,19:20,5),]
+```
+### Guardar los archivos
+```{r}
+cohorte="ROSMAP"
+fwrite(twas,file = paste0(analisis,trait, "/",cohorte, "/",trait,"_",cohorte,"_pwas.txt"),col.names =T, sep="\t",quote=F, na=NA)
+
+fwrite(twas_sig,file = paste0(analisis,trait, "/",cohorte, "/",trait,"_",cohorte,"_pwas_sig.txt"),col.names =T, sep="\t",quote=F, na=NA)
+```
+
+## BANNER
+### Crear carpetas
+```{bash}
+
+declare trait="CMB_strictlylobar_withexclusions"
+declare analisis="/media/stroke/Almacen/NAS/GENETICA/analisis/PWAS/"
+declare cohorte="BANNER"
+
+mkdir $analisis/$trait/$cohorte
+mkdir $analisis/$trait/$cohorte/joint
+```
+
+### Análisis
+```{bash}
+declare data="/media/stroke/Almacen/NAS/GENETICA/Datos/SUMMARIES/6.IMPUTED_SUMMARIES/"
+declare trait="CMB_strictlylobar_withexclusions"
+declare programa="/media/stroke/Almacen/NAS/GENETICA/programas/FUSION/"
+declare weights="/media/stroke/Almacen/NAS/GENETICA/Datos/eQTL/BANNER/"
+declare ldref="/media/stroke/Almacen/NAS/GENETICA/Datos/1000G/LDREF/"
+declare analisis="/media/stroke/Almacen/NAS/GENETICA/analisis/PWAS/"
+declare cohorte="BANNER"
+
+#Puede estar en el hg19 o hg38, FUSION no tiene en cuenta el build, es indiferente, solo afecta a la visualización del joint
+for a in $(seq 1 22); do Rscript $programa/FUSION.assoc_test.R \
+--sumstats $data/$trait/union_imputed.${trait}.gz \
+--weights $weights/train_weights.pos \
+--weights_dir $weights/ \
+--ref_ld_chr $ldref/1000G.EUR. \
+--chr ${a} \
+--out $analisis/$trait/$cohorte/pwas_${cohorte}_${trait}_hg19_chr${a}.dat; done
+```
+### Cargar resultados
+
+```{r}
+analisis<-"/media/stroke/Almacen/NAS/GENETICA/analisis/PWAS/"
+cohorte="BANNER"
+
+#trait<-"ICH_SAIGE_UKBB"
+
+files_txt <- list.files(path = paste0(analisis,trait,"/",cohorte,"/"), pattern = "*.dat", full.names = T)
+tbl_txt<- lapply(files_txt, fread) 
+names_txt<-data.table(files_txt)
+names_txt<-separate(names_txt,col="files_txt",into=c("a","b"),sep = ".dat")
+names_txt<-separate(names_txt,col="a",into=c("a","b"),sep = "//")
+names(tbl_txt)<-names_txt[,b]
+
+# Unir todas las features
+twas_v8<-ldply(tbl_txt, data.table)
+
+twas<-twas_v8[order(twas_v8$TWAS.P),]
+twas<-twas[!is.na(twas$BEST.GWAS.ID),]
+adjusted_p<-0.05/dim(twas)[1]
+
+
+# Escoger los significativos
+twas_sig<-twas[twas$TWAS.P<adjusted_p,]
+#twas_sig<-twas_sig[!is.na(twas_sig$.id),]
+# twas_sig<-twas_sig[,c(24,6,21,22,3,25:26,9:15,19:20,5),]
+twas_sig<-twas_sig[order(twas_sig$TWAS.P),]
+
+# Conocer cuantos genes únicos hay seleccionando de cada gen el mejor p-value
+twas_sig_uniq<-twas_sig %>%
+    dplyr::group_by(ID) %>%
+    dplyr::slice(which.min(TWAS.P))
+```
+
+
+```{r}
+# Unir ID ensembl con símbolo del gen. Se necesita paquete annotable
+twas$ensem<-twas$ID
+twas2<-twas %>% 
+  separate(ensem,c("ensem","lala"),"\\.") #Hay que poner \\ para que interprete el . como un caracter
+symbol<-grch38[,c(1,3,8,9)]
+symbol<-symbol %>%
+    dplyr::group_by(ensgene) %>%
+    dplyr::slice(1) 
+twas<-merge(twas2,symbol, by.x="ensem", by.y="ensgene",all.x = T)
+twas<-twas[,c(24,6,21,22,3,25:26,9:15,19:20,5),]
+```
+### Guardar los archivos
+```{r}
+cohorte="BANNER"
+fwrite(twas,file = paste0(analisis,trait, "/",cohorte, "/",trait,"_",cohorte,"_pwas.txt"),col.names =T, sep="\t",quote=F, na=NA)
+
+fwrite(twas_sig,file = paste0(analisis,trait, "/",cohorte, "/",trait,"_",cohorte,"_pwas_sig.txt"),col.names =T, sep="\t",quote=F, na=NA)
+```
+# 3) Joint/conditional tests
+A conditional analysis was used to determine whether multiple signiﬁcant features within a given locus represent independent associations or a single association owing to correlated predicted expression between features.
+This process identiﬁes which features represent independent associations (termed jointly signiﬁcant) and which features are not signiﬁcant when accounting for the predicted expression of other features in the region (termed marginally signiﬁcant)
+We observed that multiple signiﬁcant features resided within the same locus (deﬁned as a 1.5 Mb +/- 0.5 window), for a total of 36 genomic regions.
+Conditional analysis of the 176 signiﬁcant features identiﬁed 50 jointly (49 unique genes) and 126 marginally (45 unique genes) signiﬁcant features. This indicated that most of the identiﬁed features were associated with depression owing to their coexpression with the 50 independent features.
+## ROSMAP
+### Cargar resultados
+```{r}
+
+analisis<-"/media/stroke/Almacen/NAS/GENETICA/analisis/PWAS/"
+cohorte<-"ROSMAP"
+
+tbl_txt<-fread(paste0(analisis, trait,"/",cohorte,"/",trait,"_",cohorte,"_pwas.txt"))
+signif<-fread(paste0(analisis, trait,"/",cohorte,"/",trait,"_",cohorte,"_pwas_sig.txt"))
+#trait<-"ICH_SAIGE_UKBB"
+
+```
+
+### Escoger los raw significativos
+```{r}
+raw<-tbl_txt[tbl_txt$TWAS.P<0.05,]
+  #signif[[i]]<-twas_v8[[1]][[i]][twas_v8[[1]][[i]]$TWAS.P<0.05,]
+  #signif[[i]]<-signif[[i]][!is.na(signif[[i]]$ID),]
+
+fwrite(signif,file = paste0(analisis,trait,"/",cohorte,"/joint/",trait,"_",cohorte,"_top"),col.names =T, sep=" ",quote=F, na=NA)
+
+fwrite(raw,file = paste0(analisis,trait,"/",cohorte,"/joint/",trait,"_",cohorte,"_top_raw"),col.names =T, sep=" ",quote=F, na=NA)
+```
+
+### Análisis 
+--locus_win:	How much to expand each feature (in bp) to define contiguous loci
+```{bash}
+
+
+# Siendo laxos, usando el raw p value de 0.05
+declare data="/media/stroke/Almacen/NAS/GENETICA/Datos/SUMMARIES/6.IMPUTED_SUMMARIES/"
+declare trait="CMB_strictlylobar_withexclusions"
+declare programa="/media/stroke/Almacen/NAS/GENETICA/programas/FUSION/"
+declare weights="/media/stroke/Almacen/NAS/GENETICA/Datos/eQTL/ROSMAP/"
+declare ldref="/media/stroke/Almacen/NAS/GENETICA/Datos/1000G/LDREF/"
+declare analisis="/media/stroke/Almacen/NAS/GENETICA/analisis/PWAS/"
+declare cohorte="ROSMAP"
+
+# Estos cromosomas tenían genes <0.05 en discovery y replicación
+
+for chr in {1..22..1}; do Rscript $programa/FUSION.post_process.R \
+--sumstats $data/$trait/union_imputed.${trait}.gz \
+--input $analisis/$trait/$cohorte/joint/${trait}_${cohorte}_top_raw \
+--out $analisis/$trait/$cohorte/joint/joint_${trait}_${cohorte}_${chr}_raw \
+--ref_ld_chr $ldref/1000G.EUR. \
+--legend joint \
+--chr $chr \
+--plot \
+--locus_win 10000; done
+```
+### Cargar resultados 
+```{r}
+
+analisis<-"/media/stroke/Almacen/NAS/GENETICA/analisis/PWAS/"
+cohorte<-"ROSMAP"
+#trait<-"ICH_SAIGE_UKBB"
+
+
+files_txt <- list.files(path = paste0(analisis,trait,"/",cohorte,"/joint/"), pattern = "*joint_included.dat", full.names = T)
+tbl_txt<- lapply(files_txt, fread) 
+names_txt<-data.table(files_txt)
+names_txt<-separate(names_txt,col="files_txt",into=c("a","b"),sep = ".dat")
+names_txt<-separate(names_txt,col="a",into=c("a","b"),sep = "//")
+names(tbl_txt)<-names_txt[,b]
+
+# Unir todas las features
+joint<-ldply(tbl_txt, data.table)
+
+fwrite(joint,file = paste0(analisis,trait,"/",cohorte,"/joint/",trait,"_",cohorte,"_joint_included_hg19.txt"),col.names =T, sep="\t",quote=F, na=NA)
+```
+
+
+## BANNER
+### Cargar resultados
+```{r}
+
+analisis<-"/media/stroke/Almacen/NAS/GENETICA/analisis/PWAS/"
+cohorte<-"BANNER"
+
+tbl_txt<-fread(paste0(analisis, trait,"/",cohorte,"/",trait,"_",cohorte,"_pwas.txt"))
+signif<-fread(paste0(analisis, trait,"/",cohorte,"/",trait,"_",cohorte,"_pwas_sig.txt"))
+#trait<-"ICH_SAIGE_UKBB"
+
+```
+
+### Escoger los raw significativos
+```{r}
+raw<-tbl_txt[tbl_txt$TWAS.P<0.05,]
+  #signif[[i]]<-twas_v8[[1]][[i]][twas_v8[[1]][[i]]$TWAS.P<0.05,]
+  #signif[[i]]<-signif[[i]][!is.na(signif[[i]]$ID),]
+
+fwrite(signif,file = paste0(analisis,trait,"/",cohorte,"/joint/",trait,"_",cohorte,"_top"),col.names =T, sep=" ",quote=F, na=NA)
+
+fwrite(raw,file = paste0(analisis,trait,"/",cohorte,"/joint/",trait,"_",cohorte,"_top_raw"),col.names =T, sep=" ",quote=F, na=NA)
+```
+
+### Análisis 
+--locus_win:	How much to expand each feature (in bp) to define contiguous loci
+```{bash}
+
+# Siendo laxos, usando el raw p value de 0.05
+declare data="/media/stroke/Almacen/NAS/GENETICA/Datos/SUMMARIES/6.IMPUTED_SUMMARIES/"
+declare trait="CMB_strictlylobar_withexclusions"
+declare programa="/media/stroke/Almacen/NAS/GENETICA/programas/FUSION/"
+declare weights="/media/stroke/Almacen/NAS/GENETICA/Datos/eQTL/BANNER/"
+declare ldref="/media/stroke/Almacen/NAS/GENETICA/Datos/1000G/LDREF/"
+declare analisis="/media/stroke/Almacen/NAS/GENETICA/analisis/PWAS/"
+declare cohorte="BANNER"
+
+# Estos cromosomas tenían genes <0.05 en discovery y replicación
+
+for chr in {1..22..1}; do Rscript $programa/FUSION.post_process.R \
+--sumstats $data/$trait/union_imputed.${trait}.gz \
+--input $analisis/$trait/$cohorte/joint/${trait}_${cohorte}_top_raw \
+--out $analisis/$trait/$cohorte/joint/joint_${trait}_${cohorte}_${chr}_raw \
+--ref_ld_chr $ldref/1000G.EUR. \
+--legend joint \
+--chr $chr \
+--plot \
+--locus_win 10000; done
+```
+### Cargar resultados 
+```{r}
+
+analisis<-"/media/stroke/Almacen/NAS/GENETICA/analisis/PWAS/"
+cohorte<-"BANNER"
+
+#trait<-"ICH_SAIGE_UKBB"
+
+
+files_txt <- list.files(path = paste0(analisis,trait,"/",cohorte,"/joint/"), pattern = "*joint_included.dat", full.names = T)
+tbl_txt<- lapply(files_txt, fread) 
+names_txt<-data.table(files_txt)
+names_txt<-separate(names_txt,col="files_txt",into=c("a","b"),sep = ".dat")
+names_txt<-separate(names_txt,col="a",into=c("a","b"),sep = "//")
+names(tbl_txt)<-names_txt[,b]
+
+# Unir todas las features
+joint<-ldply(tbl_txt, data.table)
+
+fwrite(joint,file = paste0(analisis,trait,"/",cohorte,"/joint/",trait,"_",cohorte,"_joint_included_hg19.txt"),col.names =T, sep="\t",quote=F, na=NA)
+```
+
+
+```{r}
+# Unir ID ensembl con símbolo del gen. Se necesita paquete annotable
+joint$ensem<-joint$ID
+joint2<-joint %>% 
+  separate(ensem,c("ensem","lala"),"\\.") #Hay que poner \\ para que interprete el . como un caracter
+symbol<-grch38[,c(1,3,8,9)]
+symbol<-symbol %>%
+    dplyr::group_by(ensgene) %>%
+    dplyr::slice(1) 
+joint<-merge(joint2,symbol, by.x="ensem", by.y="ensgene",all.x = T)
+#joint<-joint[,c(34:36,13:15,7:9,16,3,4,21:32,10:12)]
+joint<-joint[,-c(1,2,4,5)]
+joint<-joint[,c(10:12,1:9)]
+
+#joint_included<-joint[joint$type=="joint_included",]
+#joint_included<-joint_included[order(joint_included$TWAS.P),]
+
+#joint_included<-joint_included %>%
+    #dplyr::group_by(symbol) %>%
+    #dplyr::slice(which.min(TWAS.P)) 
+
+fwrite(joint,file = paste0(analisis,trait,"/hg19/tissues/joint/joint_included_hg19_gtexv8.txt"),col.names =T, sep="\t",quote=F, na=NA)
+#fwrite(joint,file = paste0(analisis,trait,"/hg19/tissues/joint/joint_adjusted_hg19_gtexv8.txt"),col.names =T, sep="\t",quote=F, na=NA)
+```
+
+# 4) Comparar resultados
+
+## ROSMAP
+```{r}
+discovery<-joint
+replicacion<-fread(paste0(analisis,"ICH_SAIGE_UKBB/ICH_SAIGE_UKBB_pwas.txt"))
+
+merge<-merge(discovery,replicacion,by = "ID")
+merge<-merge[,c(1,4,5,28,29,9,13,17)]
+merge<-merge[order(merge$TWAS.P.x),]
+
+fwrite(merge,file = paste0(analisis,"validation_pwas.txt"),col.names =T, sep="\t",quote=F, na=NA)
+
+merge2<-merge[merge$TWAS.P.y<0.1,]
+```

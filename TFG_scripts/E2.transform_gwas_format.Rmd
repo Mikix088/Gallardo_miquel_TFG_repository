@@ -1,0 +1,107 @@
+---
+title: "Transform gwas format"
+author: "Miquel"
+date: "2024-03-20"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+if (!require("BiocManager")) install.packages("BiocManager")
+BiocManager::install("BSgenome")
+BiocManager::install("SNPlocs.Hsapiens.dbSNP155.GRCh37")
+```
+
+```{r}
+library(data.table)
+library(dplyr)
+library(colochelpR)
+library("SNPlocs.Hsapiens.dbSNP155.GRCh37")
+```
+
+```{r}
+gwas1 <- fread("/home/stroke/Documentos/Miquel_Gallardo/real_data/data/GWAS/geno_assoc_brainomix_clean.gwas.gz")
+gwas2 <- fread("/home/stroke/Documentos/Miquel_Gallardo/real_data/data/GWAS/geno_assoc_neuros_clean.gwas.gz")
+gwas3 <- fread("/home/stroke/Documentos/Miquel_Gallardo/real_data/data/GWAS/geno_assoc_collaterals_clean.gwas.gz")
+gwas4 <- fread("/home/stroke/Documentos/Miquel_Gallardo/real_data/data/GWAS/geno_assoc_rank_transformation_clean.gwas.gz")
+
+gwas1$no_rs <- sub("^rs(\\d+):.*", "\\1", gwas1$SNP)
+gwas1$no_rs <- sub("^.*:(.{6}).*", "\\1", gwas1$no_rs)
+gwas1$no_rs <- as.numeric(gwas1$no_rs)
+gwas1 <- gwas1[!is.na(gwas1$no_rs), ]
+
+gwas2$no_rs <- sub("^rs(\\d+):.*", "\\1", gwas2$SNP)
+gwas2$no_rs <- sub("^.*:(.{6}).*", "\\1", gwas2$no_rs)
+gwas2$no_rs <- as.numeric(gwas2$no_rs)
+gwas2 <- gwas2[!is.na(gwas2$no_rs), ]
+
+gwas3$no_rs <- sub("^rs(\\d+):.*", "\\1", gwas3$SNP)
+gwas3$no_rs <- sub("^.*:(.{6}).*", "\\1", gwas3$no_rs)
+gwas3$no_rs <- as.numeric(gwas3$no_rs)
+gwas3 <- gwas3[!is.na(gwas3$no_rs), ]
+gwas3 <- gwas3[, -12]
+gwas3 <- gwas3[, -11]
+
+gwas4$no_rs <- sub("^rs(\\d+):.*", "\\1", gwas4$SNP)
+gwas4$no_rs <- sub("^.*:(.{6}).*", "\\1", gwas4$no_rs)
+gwas4$no_rs <- as.numeric(gwas4$no_rs)
+gwas4 <- gwas4[!is.na(gwas4$no_rs), ]
+gwas4 <- gwas4[, -12]
+gwas4 <- gwas4[, -11]
+
+df1 <- convert_rs_to_loc(gwas1, SNP_column = "no_rs", dbSNP = SNPlocs.Hsapiens.dbSNP155.GRCh37)
+df2 <- convert_rs_to_loc(gwas2, SNP_column = "no_rs", dbSNP = SNPlocs.Hsapiens.dbSNP155.GRCh37)
+df3 <- convert_rs_to_loc(gwas3, SNP_column = "no_rs", dbSNP = SNPlocs.Hsapiens.dbSNP155.GRCh37)
+df4 <- convert_rs_to_loc(gwas4, SNP_column = "no_rs", dbSNP = SNPlocs.Hsapiens.dbSNP155.GRCh37)
+
+split_loc1 <- strsplit(df1$loc, ":")
+split_loc2 <- strsplit(df2$loc, ":")
+split_loc3 <- strsplit(df3$loc, ":")
+split_loc4 <- strsplit(df4$loc, ":")
+
+df1$chr_hg19 <- sapply(split_loc1, "[[", 1)
+df1$chr_hg19 <- as.numeric(df1$chr_hg19)
+df1$pos_hg19 <- sapply(split_loc1, "[[", 2)
+df1$pos_hg19 <- as.numeric(df1$pos_hg19)
+
+df2$chr_hg19 <- sapply(split_loc2, "[[", 1)
+df2$chr_hg19 <- as.numeric(df2$chr_hg19)
+df2$pos_hg19 <- sapply(split_loc2, "[[", 2)
+df2$pos_hg19 <- as.numeric(df2$pos_hg19)
+
+df3$chr_hg19 <- sapply(split_loc3, "[[", 1)
+df3$chr_hg19 <- as.numeric(df3$chr_hg19)
+df3$pos_hg19 <- sapply(split_loc3, "[[", 2)
+df3$pos_hg19 <- as.numeric(df3$pos_hg19)
+
+df4$chr_hg19 <- sapply(split_loc4, "[[", 1)
+df4$chr_hg19 <- as.numeric(df4$chr_hg19)
+df4$pos_hg19 <- sapply(split_loc4, "[[", 2)
+df4$pos_hg19 <- as.numeric(df4$pos_hg19)
+```
+
+convert position from float to integer
+```{r}
+df1$pos_hg19 <- as.integer(df1$pos_hg19)
+df2$pos_hg19 <- as.integer(df2$pos_hg19)
+df3$pos_hg19 <- as.integer(df3$pos_hg19)
+df4$pos_hg19 <- as.integer(df4$pos_hg19)
+
+sci <- function(x){
+  issci <- grepl("e", as.character(x))
+  return(issci)
+}
+
+sci_ps <- df1$pos_hg19[sci(df1$pos_hg19)]
+```
+
+```{r}
+fwrite(df1, file=("/home/stroke/Documentos/Miquel_Gallardo/real_data/data/GWAS/geno_assoc_brainomix_clean_grch37.gwas.gz"), col.names = T, row.names = F, quote = F, sep = "\t")
+fwrite(df2, file=("/home/stroke/Documentos/Miquel_Gallardo/real_data/data/GWAS/geno_assoc_neuros_clean_grch37.gwas.gz"), col.names = T, row.names = F, quote = F, sep = "\t")
+fwrite(df3, file=("/home/stroke/Documentos/Miquel_Gallardo/real_data/data/GWAS/geno_assoc_collaterals_clean_grch37.gwas.gz"), col.names = T, row.names = F, quote = F, sep = "\t")
+fwrite(df4, file=("/home/stroke/Documentos/Miquel_Gallardo/real_data/data/GWAS/geno_assoc_rank_transformation_clean_grch37.gwas.gz"), col.names = T, row.names = F, quote = F, sep = "\t")
+```
+

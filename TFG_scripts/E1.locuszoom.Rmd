@@ -1,0 +1,119 @@
+---
+title: "locuszoom"
+author: "Miquel"
+date: "2024-03-18"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(data.table)
+library(LDlinkR)
+token_ldlink <- "a7c9e459335e"
+library(data.table)
+library(locuszoomr)
+library(EnsDb.Hsapiens.v75)
+if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+BiocManager::install("EnsDb.Hsapiens.v75")
+```
+
+```{r}
+alleles <- c("A","T","C","G")
+gwas <- fread("/home/stroke/Documentos/Miquel_Gallardo/real_data/data/GWAS/geno_assoc_neuros_clean.gwas.gz")
+gwas <- gwas[gwas$A2%in% alleles & gwas$A1 %in% alleles,]
+
+gwas.locus <- gwas[gwas$P<5e-8,]
+nrow(gwas.locus)
+#metal <- fread("../data/METAANALYSIS_clean.txt")
+#metal.locus <- metal[metal$`P-value`<5e-8,]
+#nrow(metal.locus)
+```
+
+```{r}
+#spain <- fread("../data/GWAS_Merge.txt")
+#poland <- fread("../data/GWAS_Polonia.txt")
+```
+
+# Locus zoom
+## UKBB
+```{r}
+#colnames(gwas) <- c("CHR", "rsID","POS", "A1","A2","N","AF1", "BETA", "SE","P", "SNP")
+gwas <- gwas[, c("CHR", "rsID","POS", "A1","A2","N","AF1", "BETA", "SE","P", "SNP")]
+colnames(gwas)[11] <- "SNP_ID"
+```
+
+```{r}
+loc <- locus(data = gwas, index_snp = "rs73038416", flank= 1e6,
+             ens_db = "EnsDb.Hsapiens.v75", p = "P", chrom = "CHR", pos = "POS", labs = "rsID")
+#loc <- link_recomb(loc, genome = "hg19")
+summary(loc)
+locus_plot(loc)
+#loc <- link_LD(loc, token = token_ldlink)
+locus_plot(loc, labels = c("index"),
+                label_x = c(-5))
+locus_plotly(loc)
+
+```
+
+```{r}
+gwas <- fread("/home/stroke/Documentos/Miquel_Gallardo/real_data/data/GWAS/geno_assoc_collaterals_clean.gwas.gz")
+gwas <- gwas[gwas$A2%in% alleles & gwas$A1 %in% alleles,]
+
+gwas.locus <- gwas[gwas$P<5e-8,]
+nrow(gwas.locus)
+```
+
+```{r}
+gwas <- gwas[, c("CHR", "rsID","POS", "A1","A2","N","AF1", "BETA", "SE","P", "SNP")]
+colnames(gwas)[11] <- "SNP_ID"
+```
+
+
+```{r}
+loc <- locus(data = gwas, index_snp = "rs2974701", flank= 1e5,
+             ens_db = "EnsDb.Hsapiens.v75", p = "P", chrom = "CHR", pos = "POS", labs = "rsID")
+#loc <- link_recomb(loc, genome = "hg19")
+summary(loc)
+locus_plot(loc)
+#loc <- link_LD(loc, token = token_ldlink)
+locus_plot(loc, labels = c("index"),
+                label_x = c(-5))
+locus_plotly(loc)
+
+```
+
+```{r}
+gwas <- fread("/home/stroke/Documentos/Miquel_Gallardo/real_data/data/GWAS/geno_assoc_rank_transformation_clean.gwas.gz")
+gwas <- gwas[gwas$A2%in% alleles & gwas$A1 %in% alleles,]
+
+gwas.locus <- gwas[gwas$P<5e-8,]
+nrow(gwas.locus)
+```
+
+```{r}
+gwas <- gwas[, c("CHR", "rsID","POS", "A1","A2","N","AF1", "BETA", "SE","P", "SNP")]
+colnames(gwas)[11] <- "SNP_ID"
+```
+
+
+```{r}
+loc <- locus(data = gwas, index_snp = "rs7789601", flank= 1e5,
+             ens_db = "EnsDb.Hsapiens.v75", p = "P", chrom = "CHR", pos = "POS", labs = "rsID")
+#loc <- link_recomb(loc, genome = "hg19")
+summary(loc)
+locus_plot(loc)
+loc <- link_LD(loc, token = token_ldlink)
+locus_plot(loc, labels = c("index"),
+                label_x = c(-5))
+locus_plotly(loc)
+
+```
+
+
+
+

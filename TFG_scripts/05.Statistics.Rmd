@@ -1,0 +1,1099 @@
+---
+title: "Clinical_variables"
+author: "Miquel"
+date: "2024-03-12"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(readxl)
+# load final_all excel
+jara <-read_excel("/home/stroke/Descargas/Base de dades CPEs_Jara.xlsx") 
+ids <- c(90108, 90114, 90118, 90103, 90102, 90110, 90105, 90112, 90119, 90113, 90106, 90104)#para neuros
+filas <- subset(jara, ID_participant %in% ids)
+#nono <- merge(no, filas, by = "ID_participant") # para brx
+#nono <- filas # para neuros
+#nono$dicot_neur <- ifelse(nono$CS_Quino_JP>1, 1, 0) # para neuros 
+```
+
+#Brainomix todas 
+```{r}
+### total column
+# total individuals without na in brainomix
+brx_all_ids <- fread("/home/stroke/Documentos/Miquel_Gallardo/real_data/phenotype/Brainomixno_na.ids", header = F)
+brx_all_dat <- final_all[final_all$V1%in%brx_all_ids$V1,]
+# %females
+females <- brx_all_dat$V5.x.x
+table(females)
+# age median and quantiles 
+age <- brx_all_dat$Edat.x.x
+quantile(age, na.rm=T)
+#fumador
+fumador <- ifelse(brx_all_dat$fumador.x.x=="Sí", "Sí", "No")
+table(fumador)
+# aspects_b
+aspects_joan <- brx_all_dat$aspects_b.x.x.x
+aspects_no <- brx_all_dat$aspects_b.y.x.x
+aspects_b <- c(aspects_joan, aspects_no)
+quantile(aspects_b, na.rm = T)
+# hta 
+hta_joan <- brx_all_dat$hta.x.x
+hta_no <- ifelse(filas$hta==0, "No", "Sí")
+hta_b <- c(hta_joan, hta_no)
+table(hta_b)
+#diabetes_mellitus 
+diabetes_joan <- ifelse(brx_all_dat$diabetes_mellitus.x.x=="No", 0, 2)
+diabetes_no <-filas$diabetes_mellitus
+diabetes <- c(diabetes_joan, diabetes_no)
+table(diabetes)
+#Alcohol 
+alcohol_joan <- ifelse(brx_all_dat$alcohol.x.x=="Sí consumo de riesgo", 1, 0)
+alcohol_no <- filas$alcohol
+alcohol <- c(alcohol_joan, alcohol_no)
+table(alcohol)
+#nihss_b
+nihss_b_joan <-brx_all_dat$nihss_b.x.x
+nihss_b_no <- filas$`NIHSS basal`
+nihss_b <- c(nihss_b_joan, nihss_b_no)
+quantile(nihss_b, na.rm = T)
+#mrs alta
+mrs_joan <- ifelse(brx_all_dat$mrs_alta.x.x>2,1,0)
+mrs_no <- ifelse(filas$`mRS alta`>2,1,0)
+mrs_alta <- c(mrs_joan, mrs_no)
+table(mrs_alta)
+#mrs-prev
+mrs_prev_joan <-  ifelse(brx_all_dat$mrs_pre.x.x>2,1,0)
+mrs_prev_no <- ifelse(filas$`mRS previo`>2,1,0)
+mrs_prev <- c(mrs_prev_joan, mrs_prev_no)
+table(mrs_prev)
+#nihss_alta
+nihss_alta_joan <- brx_all_dat$nihss_alta.x.x
+nihss_alta_no <- filas$`NIHSS alta`
+nihss_alta <- c(nihss_alta_joan, nihss_alta_no)
+quantile(nihss_alta, na.rm = T)
+#cardiopatia isquemica
+card_isq_joan <- brx_all_dat$cardio_isq.y.x.x
+card_isq_no <- ifelse(filas$cardio_isq==0, "No", "Sí")
+card_isq <- c(card_isq_joan, card_isq_no)
+table(card_isq)
+# fa previa
+fa_prev_joan <- brx_all_dat$fa_previa.y.x.x
+fa_prev_no <- ifelse(filas$fa_previa==0, "No", "Sí")
+fa_prev <- c(fa_prev_joan, fa_prev_no)
+table(fa_prev)
+# precond isq cv 
+precond_isq_cv_joan <- brx_all_dat$precond_isq_cerebral.x.x
+precond_isq_cv_no <- ifelse(filas$precond_isq_cerebral==0, "No", "Sí")
+precond_isq <- c(precond_isq_cv_joan, precond_isq_cv_no)
+table(precond_isq)
+#transformacion hemorragica sint
+trans_hem_joan <- brx_all_dat$transf_hem_sint.y.x.x
+trans_hem_no <- ifelse(filas$transf_hem_sint==0, "No", "Sí")
+trans_hem <- c(trans_hem_joan, trans_hem_no)
+table(trans_hem)  
+#TOAS
+toas_joan <- brx_all_dat$toast_3meses.x.x
+filas$`TOAST 3m` <- ifelse(filas$`TOAST 3m`==6, "Indeterminado estudio incompleto", 
+                          ifelse(filas$`TOAST 3m`==4, "Indeterminado: causa desconocida", 
+                                 ifelse(filas$`TOAST 3m`==1, "Cardioembólico", 
+                                        ifelse(filas$`TOAST 3m`==0, "Aterotrombótico", NA))))
+toas_no <- filas$`TOAST 3m`
+toas <- c(toas_joan, toas_no)
+table(toas)
+```
+  
+# Brainomix good
+```{r}
+### total column
+# total individuals without na in brainomix
+brx_all_ids <- fread("/home/stroke/Documentos/Miquel_Gallardo/real_data/phenotype/Brainomixbuenas.ids", header = F)
+brx_all_dat <- final_all[final_all$V1%in%brx_all_ids$V1,]
+# %females
+females <- brx_all_dat$V5.x.x
+table(females)
+# age median and quantiles 
+age <- brx_all_dat$Edat.x.x
+quantile(age, na.rm=T)
+#fumador
+fumador <- ifelse(brx_all_dat$fumador.x.x=="Sí", "Sí", "No")
+table(fumador)
+# aspects_b
+aspects_joan <- brx_all_dat$aspects_b.x.x.x
+aspects_no <- brx_all_dat$aspects_b.y.x.x
+aspects_b <- c(aspects_joan, aspects_no)
+quantile(aspects_b, na.rm = T)
+# hta 
+hta_joan <- brx_all_dat$hta.x.x
+hta_no <- ifelse(filas$hta==0, "No", "Sí")
+hta_b <- c(hta_joan, hta_no)
+table(hta_b)
+#diabetes_mellitus 
+diabetes_joan <- ifelse(brx_all_dat$diabetes_mellitus.x.x=="No", 0, 2)
+diabetes_no <-filas$diabetes_mellitus
+diabetes <- c(diabetes_joan, diabetes_no)
+table(diabetes)
+#Alcohol 
+alcohol_joan <- ifelse(brx_all_dat$alcohol.x.x=="Sí consumo de riesgo", 1, 0)
+alcohol_no <- filas$alcohol
+alcohol <- c(alcohol_joan, alcohol_no)
+table(alcohol)
+#nihss_b
+nihss_b_joan <-brx_all_dat$nihss_b.x.x
+nihss_b_no <- filas$`NIHSS basal`
+nihss_b <- c(nihss_b_joan, nihss_b_no)
+quantile(nihss_b, na.rm = T)
+#mrs alta
+mrs_joan <- ifelse(brx_all_dat$mrs_alta.x.x>2,1,0)
+mrs_no <- ifelse(filas$`mRS alta`>2,1,0)
+mrs_alta <- c(mrs_joan, mrs_no)
+table(mrs_alta)
+#mrs-prev
+mrs_prev_joan <-  ifelse(brx_all_dat$mrs_pre.x.x>2,1,0)
+mrs_prev_no <- ifelse(filas$`mRS previo`>2,1,0)
+mrs_prev <- c(mrs_prev_joan, mrs_prev_no)
+table(mrs_prev)
+#nihss_alta
+nihss_alta_joan <- brx_all_dat$nihss_alta.x.x
+nihss_alta_no <- filas$`NIHSS alta`
+nihss_alta <- c(nihss_alta_joan, nihss_alta_no)
+quantile(nihss_alta, na.rm = T)
+#cardiopatia isquemica
+card_isq_joan <- brx_all_dat$cardio_isq.y.x.x
+card_isq_no <- ifelse(filas$cardio_isq==0, "No", "Sí")
+card_isq <- c(card_isq_joan, card_isq_no)
+table(card_isq)
+# fa previa
+fa_prev_joan <- brx_all_dat$fa_previa.y.x.x
+fa_prev_no <- ifelse(filas$fa_previa==0, "No", "Sí")
+fa_prev <- c(fa_prev_joan, fa_prev_no)
+table(fa_prev)
+# precond isq cv 
+precond_isq_cv_joan <- brx_all_dat$precond_isq_cerebral.x.x
+precond_isq_cv_no <- ifelse(filas$precond_isq_cerebral==0, "No", "Sí")
+precond_isq <- c(precond_isq_cv_joan, precond_isq_cv_no)
+table(precond_isq)
+#transformacion hemorragica sint
+trans_hem_joan <- brx_all_dat$transf_hem_sint.y.x.x
+trans_hem_no <- ifelse(filas$transf_hem_sint==0, "No", "Sí")
+trans_hem <- c(trans_hem_joan, trans_hem_no)
+table(trans_hem)  
+#TOAS
+toas_joan <- brx_all_dat$toast_3meses.x.x
+filas$`TOAST 3m` <- ifelse(filas$`TOAST 3m`==6, "Indeterminado estudio incompleto", 
+                          ifelse(filas$`TOAST 3m`==4, "Indeterminado: causa desconocida", 
+                                 ifelse(filas$`TOAST 3m`==1, "Cardioembólico", 
+                                        ifelse(filas$`TOAST 3m`==0, "Aterotrombótico", NA))))
+toas_no <- filas$`TOAST 3m`
+toas <- c(toas_joan, toas_no)
+table(toas)
+```
+
+# Brainomix bad
+```{r}
+### total column
+# total individuals without na in brainomix
+brx_all_ids <- fread("/home/stroke/Documentos/Miquel_Gallardo/real_data/phenotype/Brainomixmalas.ids", header = F)
+brx_all_dat <- final_all[final_all$V1%in%brx_all_ids$V1,]
+# %females
+females <- brx_all_dat$V5.x.x
+table(females)
+# age median and quantiles 
+age <- brx_all_dat$Edat.x.x
+quantile(age, na.rm=T)
+#fumador
+fumador <- ifelse(brx_all_dat$fumador.x.x=="Sí", "Sí", "No")
+table(fumador)
+# aspects_b
+aspects_joan <- brx_all_dat$aspects_b.x.x.x
+aspects_no <- brx_all_dat$aspects_b.y.x.x
+aspects_b <- c(aspects_joan, aspects_no)
+quantile(aspects_b, na.rm = T)
+# hta 
+hta_joan <- brx_all_dat$hta.x.x
+hta_no <- ifelse(filas$hta==0, "No", "Sí")
+hta_b <- c(hta_joan, hta_no)
+table(hta_b)
+#diabetes_mellitus 
+diabetes_joan <- ifelse(brx_all_dat$diabetes_mellitus.x.x=="No", 0, 2)
+diabetes_no <-filas$diabetes_mellitus
+diabetes <- c(diabetes_joan, diabetes_no)
+table(diabetes)
+#Alcohol 
+alcohol_joan <- ifelse(brx_all_dat$alcohol.x.x=="Sí consumo de riesgo", 1, 0)
+alcohol_no <- filas$alcohol
+alcohol <- c(alcohol_joan, alcohol_no)
+table(alcohol)
+#nihss_b
+nihss_b_joan <-brx_all_dat$nihss_b.x.x
+nihss_b_no <- filas$`NIHSS basal`
+nihss_b <- c(nihss_b_joan, nihss_b_no)
+quantile(nihss_b, na.rm = T)
+#mrs alta
+mrs_joan <- ifelse(brx_all_dat$mrs_alta.x.x>2,1,0)
+mrs_no <- ifelse(filas$`mRS alta`>2,1,0)
+mrs_alta <- c(mrs_joan, mrs_no)
+table(mrs_alta)
+#mrs-prev
+mrs_prev_joan <-  ifelse(brx_all_dat$mrs_pre.x.x>2,1,0)
+mrs_prev_no <- ifelse(filas$`mRS previo`>2,1,0)
+mrs_prev <- c(mrs_prev_joan, mrs_prev_no)
+table(mrs_prev)
+#nihss_alta
+nihss_alta_joan <- brx_all_dat$nihss_alta.x.x
+nihss_alta_no <- filas$`NIHSS alta`
+nihss_alta <- c(nihss_alta_joan, nihss_alta_no)
+quantile(nihss_alta, na.rm = T)
+#cardiopatia isquemica
+card_isq_joan <- brx_all_dat$cardio_isq.y.x.x
+card_isq_no <- ifelse(filas$cardio_isq==0, "No", "Sí")
+card_isq <- c(card_isq_joan, card_isq_no)
+table(card_isq)
+# fa previa
+fa_prev_joan <- brx_all_dat$fa_previa.y.x.x
+fa_prev_no <- ifelse(filas$fa_previa==0, "No", "Sí")
+fa_prev <- c(fa_prev_joan, fa_prev_no)
+table(fa_prev)
+# precond isq cv 
+precond_isq_cv_joan <- brx_all_dat$precond_isq_cerebral.x.x
+precond_isq_cv_no <- ifelse(filas$precond_isq_cerebral==0, "No", "Sí")
+precond_isq <- c(precond_isq_cv_joan, precond_isq_cv_no)
+table(precond_isq)
+#transformacion hemorragica sint
+trans_hem_joan <- brx_all_dat$transf_hem_sint.y.x.x
+trans_hem_no <- ifelse(filas$transf_hem_sint==0, "No", "Sí")
+trans_hem <- c(trans_hem_joan, trans_hem_no)
+table(trans_hem)  
+#TOAS
+toas_joan <- brx_all_dat$toast_3meses.x.x
+filas$`TOAST 3m` <- ifelse(filas$`TOAST 3m`==6, "Indeterminado estudio incompleto", 
+                          ifelse(filas$`TOAST 3m`==4, "Indeterminado: causa desconocida", 
+                                 ifelse(filas$`TOAST 3m`==1, "Cardioembólico", 
+                                        ifelse(filas$`TOAST 3m`==0, "Aterotrombótico", NA))))
+toas_no <- filas$`TOAST 3m`
+toas <- c(toas_joan, toas_no)
+table(toas)
+```
+
+
+#Neuros todas 
+```{r}
+### total column
+# total individuals without na in neuros
+neu_all_ids <- fread("/home/stroke/Documentos/Miquel_Gallardo/real_data/phenotype/neurosno_na.ids", header = F)
+neu_all_dat <- final_all[final_all$V1%in%neu_all_ids$V1,]
+# %females
+females <- neu_all_dat$V5.x.x
+table(females)
+# age median and quantiles 
+age <- neu_all_dat$Edat.x.x
+quantile(age, na.rm=T)
+#fumador
+fumador <- ifelse(neu_all_dat$fumador.x.x=="Sí", "Sí", "No")
+table(fumador)
+# aspects_b
+aspects_joan <- neu_all_dat$aspects_b.x.x.x
+aspects_no <- neu_all_dat$aspects_b.y.x.x
+aspects_b <- c(aspects_joan, aspects_no)
+quantile(aspects_b, na.rm = T)
+# hta 
+hta_joan <- neu_all_dat$hta.x.x
+hta_no <- ifelse(filas$hta==0, "No", "Sí")
+hta_b <- c(hta_joan, hta_no)
+table(hta_b)
+#diabetes_mellitus 
+diabetes_joan <- ifelse(neu_all_dat$diabetes_mellitus.x.x=="No", 0, 2)
+diabetes_no <-filas$diabetes_mellitus
+diabetes <- c(diabetes_joan, diabetes_no)
+table(diabetes)
+#Alcohol 
+alcohol_joan <- ifelse(neu_all_dat$alcohol.x.x=="Sí consumo de riesgo", 1, 0)
+alcohol_no <- filas$alcohol
+alcohol <- c(alcohol_joan, alcohol_no)
+table(alcohol)
+#nihss_b
+nihss_b_joan <-neu_all_dat$nihss_b.x.x
+nihss_b_no <- filas$`NIHSS basal`
+nihss_b <- c(nihss_b_joan, nihss_b_no)
+quantile(nihss_b, na.rm = T)
+#mrs alta
+mrs_joan <- ifelse(neu_all_dat$mrs_alta.x.x>2,1,0)
+mrs_no <- ifelse(filas$`mRS alta`>2,1,0)
+mrs_alta <- c(mrs_joan, mrs_no)
+table(mrs_alta)
+#mrs-prev
+mrs_prev_joan <-  ifelse(neu_all_dat$mrs_pre.x.x>2,1,0)
+mrs_prev_no <- ifelse(filas$`mRS previo`>2,1,0)
+mrs_prev <- c(mrs_prev_joan, mrs_prev_no)
+table(mrs_prev)
+#nihss_alta
+nihss_alta_joan <- neu_all_dat$nihss_alta.x.x
+nihss_alta_no <- filas$`NIHSS alta`
+nihss_alta <- c(nihss_alta_joan, nihss_alta_no)
+quantile(nihss_alta, na.rm = T)
+#cardiopatia isquemica
+card_isq_joan <- neu_all_dat$cardio_isq.y.x.x
+card_isq_no <- ifelse(filas$cardio_isq==0, "No", "Sí")
+card_isq <- c(card_isq_joan, card_isq_no)
+table(card_isq)
+# fa previa
+fa_prev_joan <- neu_all_dat$fa_previa.y.x.x
+fa_prev_no <- ifelse(filas$fa_previa==0, "No", "Sí")
+fa_prev <- c(fa_prev_joan, fa_prev_no)
+table(fa_prev)
+# precond isq cv 
+precond_isq_cv_joan <- neu_all_dat$precond_isq_cerebral.x.x
+precond_isq_cv_no <- ifelse(filas$precond_isq_cerebral==0, "No", "Sí")
+precond_isq <- c(precond_isq_cv_joan, precond_isq_cv_no)
+table(precond_isq)
+#transformacion hemorragica sint
+trans_hem_joan <- neu_all_dat$transf_hem_sint.y.x.x
+trans_hem_no <- ifelse(filas$transf_hem_sint==0, "No", "Sí")
+trans_hem <- c(trans_hem_joan, trans_hem_no)
+table(trans_hem)  
+#TOAS
+toas_joan <- neu_all_dat$toast_3meses.x.x
+filas$`TOAST 3m` <- ifelse(filas$`TOAST 3m`==6, "Indeterminado estudio incompleto", 
+                          ifelse(filas$`TOAST 3m`==4, "Indeterminado: causa desconocida", 
+                                 ifelse(filas$`TOAST 3m`==1, "Cardioembólico", 
+                                        ifelse(filas$`TOAST 3m`==0, "Aterotrombótico", NA))))
+toas_no <- filas$`TOAST 3m`
+toas <- c(toas_joan, toas_no)
+table(toas)
+```
+
+#Neuros good 
+```{r}
+### total column
+# total individuals without na in neuros
+neu_all_ids <- fread("/home/stroke/Documentos/Miquel_Gallardo/real_data/phenotype/neurosbuenas.ids", header = F)
+neu_all_dat <- final_all[final_all$V1%in%neu_all_ids$V1,]
+# %females
+females <- neu_all_dat$V5.x.x
+table(females)
+# age median and quantiles 
+age <- neu_all_dat$Edat.x.x
+quantile(age, na.rm=T)
+#fumador
+fumador <- ifelse(neu_all_dat$fumador.x.x=="Sí", "Sí", "No")
+table(fumador)
+# aspects_b
+aspects_joan <- neu_all_dat$aspects_b.x.x.x
+aspects_no <- neu_all_dat$aspects_b.y.x.x
+aspects_b <- c(aspects_joan, aspects_no)
+quantile(aspects_b, na.rm = T)
+# hta 
+hta_joan <- neu_all_dat$hta.x.x
+hta_no <- ifelse(filas$hta==0, "No", "Sí")
+hta_b <- c(hta_joan, hta_no)
+table(hta_b)
+#diabetes_mellitus 
+diabetes_joan <- ifelse(neu_all_dat$diabetes_mellitus.x.x=="No", 0, 2)
+diabetes_no <-filas$diabetes_mellitus
+diabetes <- c(diabetes_joan, diabetes_no)
+table(diabetes)
+#Alcohol 
+alcohol_joan <- ifelse(neu_all_dat$alcohol.x.x=="Sí consumo de riesgo", 1, 0)
+alcohol_no <- filas$alcohol
+alcohol <- c(alcohol_joan, alcohol_no)
+table(alcohol)
+#nihss_b
+nihss_b_joan <-neu_all_dat$nihss_b.x.x
+nihss_b_no <- filas$`NIHSS basal`
+nihss_b <- c(nihss_b_joan, nihss_b_no)
+quantile(nihss_b, na.rm = T)
+#mrs alta
+mrs_joan <- ifelse(neu_all_dat$mrs_alta.x.x>2,1,0)
+mrs_no <- ifelse(filas$`mRS alta`>2,1,0)
+mrs_alta <- c(mrs_joan, mrs_no)
+table(mrs_alta)
+#mrs-prev
+mrs_prev_joan <-  ifelse(neu_all_dat$mrs_pre.x.x>2,1,0)
+mrs_prev_no <- ifelse(filas$`mRS previo`>2,1,0)
+mrs_prev <- c(mrs_prev_joan, mrs_prev_no)
+table(mrs_prev)
+#nihss_alta
+nihss_alta_joan <- neu_all_dat$nihss_alta.x.x
+nihss_alta_no <- filas$`NIHSS alta`
+nihss_alta <- c(nihss_alta_joan, nihss_alta_no)
+quantile(nihss_alta, na.rm = T)
+#cardiopatia isquemica
+card_isq_joan <- neu_all_dat$cardio_isq.y.x.x
+card_isq_no <- ifelse(filas$cardio_isq==0, "No", "Sí")
+card_isq <- c(card_isq_joan, card_isq_no)
+table(card_isq)
+# fa previa
+fa_prev_joan <- neu_all_dat$fa_previa.y.x.x
+fa_prev_no <- ifelse(filas$fa_previa==0, "No", "Sí")
+fa_prev <- c(fa_prev_joan, fa_prev_no)
+table(fa_prev)
+# precond isq cv 
+precond_isq_cv_joan <- neu_all_dat$precond_isq_cerebral.x.x
+precond_isq_cv_no <- ifelse(filas$precond_isq_cerebral==0, "No", "Sí")
+precond_isq <- c(precond_isq_cv_joan, precond_isq_cv_no)
+table(precond_isq)
+#transformacion hemorragica sint
+trans_hem_joan <- neu_all_dat$transf_hem_sint.y.x.x
+trans_hem_no <- ifelse(filas$transf_hem_sint==0, "No", "Sí")
+trans_hem <- c(trans_hem_joan, trans_hem_no)
+table(trans_hem)  
+#TOAS
+toas_joan <- neu_all_dat$toast_3meses.x.x
+filas$`TOAST 3m` <- ifelse(filas$`TOAST 3m`==6, "Indeterminado estudio incompleto", 
+                          ifelse(filas$`TOAST 3m`==4, "Indeterminado: causa desconocida", 
+                                 ifelse(filas$`TOAST 3m`==1, "Cardioembólico", 
+                                        ifelse(filas$`TOAST 3m`==0, "Aterotrombótico", NA))))
+toas_no <- filas$`TOAST 3m`
+toas <- c(toas_joan, toas_no)
+table(toas)
+```
+
+#Neuros bad
+```{r}
+### total column
+# total individuals without na in neuros
+neu_all_ids <- fread("/home/stroke/Documentos/Miquel_Gallardo/real_data/phenotype/neurosmalas.ids", header = F)
+neu_all_dat <- final_all[final_all$V1%in%neu_all_ids$V1,]
+# %females
+females <- neu_all_dat$V5.x.x
+table(females)
+# age median and quantiles 
+age <- neu_all_dat$Edat.x.x
+quantile(age, na.rm=T)
+#fumador
+fumador <- ifelse(neu_all_dat$fumador.x.x=="Sí", "Sí", "No")
+table(fumador)
+# aspects_b
+aspects_joan <- neu_all_dat$aspects_b.x.x.x
+aspects_no <- neu_all_dat$aspects_b.y.x.x
+aspects_b <- c(aspects_joan, aspects_no)
+quantile(aspects_b, na.rm = T)
+# hta 
+hta_joan <- neu_all_dat$hta.x.x
+hta_no <- ifelse(filas$hta==0, "No", "Sí")
+table(hta_joan)
+#diabetes_mellitus 
+diabetes_joan <- ifelse(neu_all_dat$diabetes_mellitus.x.x=="No", 0, 2)
+diabetes_no <-filas$diabetes_mellitus
+table(diabetes_joan)
+#Alcohol 
+alcohol_joan <- ifelse(neu_all_dat$alcohol.x.x=="Sí consumo de riesgo", 1, 0)
+alcohol_no <- filas$alcohol
+alcohol <- c(alcohol_joan, alcohol_no)
+table(alcohol)
+#nihss_b
+nihss_b_joan <-neu_all_dat$nihss_b.x.x
+nihss_b_no <- filas$`NIHSS basal`
+nihss_b <- c(nihss_b_joan, nihss_b_no)
+quantile(nihss_b, na.rm = T)
+#mrs alta
+mrs_joan <- ifelse(neu_all_dat$mrs_alta.x.x>2,1,0)
+mrs_no <- ifelse(filas$`mRS alta`>2,1,0)
+table(mrs_joan)
+#mrs-prev
+mrs_prev_joan <-  ifelse(neu_all_dat$mrs_pre.x.x>2,1,0)
+mrs_prev_no <- ifelse(filas$`mRS previo`>2,1,0)
+table(mrs_prev_joan)
+#nihss_alta
+nihss_alta_joan <- neu_all_dat$nihss_alta.x.x
+nihss_alta_no <- filas$`NIHSS alta`
+nihss_alta <- c(nihss_alta_joan, nihss_alta_no)
+quantile(nihss_alta, na.rm = T)
+#cardiopatia isquemica
+card_isq_joan <- neu_all_dat$cardio_isq.y.x.x
+card_isq_no <- ifelse(filas$cardio_isq==0, "No", "Sí")
+table(card_isq_joan)
+# fa previa
+fa_prev_joan <- neu_all_dat$fa_previa.y.x.x
+fa_prev_no <- ifelse(filas$fa_previa==0, "No", "Sí")
+table(fa_prev_joan)
+# precond isq cv 
+precond_isq_cv_joan <- neu_all_dat$precond_isq_cerebral.x.x
+precond_isq_cv_no <- ifelse(filas$precond_isq_cerebral==0, "No", "Sí")
+table(precond_isq_cv_joan)
+#transformacion hemorragica sint
+trans_hem_joan <- neu_all_dat$transf_hem_sint.y.x.x
+trans_hem_no <- ifelse(filas$transf_hem_sint==0, "No", "Sí")
+table(trans_hem_joan)  
+#TOAS
+toas_joan <- neu_all_dat$toast_3meses.x.x
+filas$`TOAST 3m` <- ifelse(filas$`TOAST 3m`==6, "Indeterminado estudio incompleto", 
+                          ifelse(filas$`TOAST 3m`==4, "Indeterminado: causa desconocida", 
+                                 ifelse(filas$`TOAST 3m`==1, "Cardioembólico", 
+                                        ifelse(filas$`TOAST 3m`==0, "Aterotrombótico", NA))))
+toas_no <- filas$`TOAST 3m`
+toas <- c(toas_joan, toas_no)
+table(toas)
+```
+
+#collaterals 
+```{r}
+### total column
+# total individuals without na in brainomix
+coll_all_ids <- fread("/home/stroke/Documentos/Miquel_Gallardo/real_data/phenotype/Brainomixno_na.ids", header = F)
+coll_all_dat <- final_all[final_all$V1%in%coll_all_ids$V1,]
+# %females
+females <- coll_all_dat$V5.x.x
+table(females)
+# age median and quantiles 
+age <- coll_all_dat$Edat.x.x
+quantile(age, na.rm=T)
+#fumador
+fumador <- ifelse(coll_all_dat$fumador.x.x=="Sí", "Sí", "No")
+table(fumador)
+# aspects_b
+aspects_joan <- coll_all_dat$aspects_b.x.x.x
+aspects_no <- coll_all_dat$aspects_b.y.x.x
+aspects_b <- c(aspects_joan, aspects_no)
+quantile(aspects_b, na.rm = T)
+# hta 
+hta_joan <- coll_all_dat$hta.x.x
+hta_no <- ifelse(filas$hta==0, "No", "Sí")
+hta_b <- c(hta_joan, hta_no)
+table(hta_b)
+#diabetes_mellitus 
+diabetes_joan <- ifelse(coll_all_dat$diabetes_mellitus.x.x=="No", 0, 2)
+diabetes_no <-filas$diabetes_mellitus
+diabetes <- c(diabetes_joan, diabetes_no)
+table(diabetes)
+#Alcohol 
+alcohol_joan <- ifelse(coll_all_dat$alcohol.x.x=="Sí consumo de riesgo", 1, 0)
+alcohol_no <- filas$alcohol
+alcohol <- c(alcohol_joan, alcohol_no)
+table(alcohol)
+#nihss_b
+nihss_b_joan <-coll_all_dat$nihss_b.x.x
+nihss_b_no <- filas$`NIHSS basal`
+nihss_b <- c(nihss_b_joan, nihss_b_no)
+quantile(nihss_b, na.rm = T)
+#mrs alta
+mrs_joan <- ifelse(coll_all_dat$mrs_alta.x.x>2,1,0)
+mrs_no <- ifelse(filas$`mRS alta`>2,1,0)
+mrs_alta <- c(mrs_joan, mrs_no)
+table(mrs_alta)
+#mrs-prev
+mrs_prev_joan <-  ifelse(coll_all_dat$mrs_pre.x.x>2,1,0)
+mrs_prev_no <- ifelse(filas$`mRS previo`>2,1,0)
+mrs_prev <- c(mrs_prev_joan, mrs_prev_no)
+table(mrs_prev)
+#nihss_alta
+nihss_alta_joan <- coll_all_dat$nihss_alta.x.x
+nihss_alta_no <- filas$`NIHSS alta`
+nihss_alta <- c(nihss_alta_joan, nihss_alta_no)
+quantile(nihss_alta, na.rm = T)
+#cardiopatia isquemica
+card_isq_joan <- coll_all_dat$cardio_isq.y.x.x
+card_isq_no <- ifelse(filas$cardio_isq==0, "No", "Sí")
+card_isq <- c(card_isq_joan, card_isq_no)
+table(card_isq)
+# fa previa
+fa_prev_joan <- coll_all_dat$fa_previa.y.x.x
+fa_prev_no <- ifelse(filas$fa_previa==0, "No", "Sí")
+fa_prev <- c(fa_prev_joan, fa_prev_no)
+table(fa_prev)
+# precond isq cv 
+precond_isq_cv_joan <- coll_all_dat$precond_isq_cerebral.x.x
+precond_isq_cv_no <- ifelse(filas$precond_isq_cerebral==0, "No", "Sí")
+precond_isq <- c(precond_isq_cv_joan, precond_isq_cv_no)
+table(precond_isq)
+#transformacion hemorragica sint
+trans_hem_joan <- coll_all_dat$transf_hem_sint.y.x.x
+trans_hem_no <- ifelse(filas$transf_hem_sint==0, "No", "Sí")
+trans_hem <- c(trans_hem_joan, trans_hem_no)
+table(trans_hem)  
+#TOAS
+toas_joan <- coll_all_dat$toast_3meses.x.x
+filas$`TOAST 3m` <- ifelse(filas$`TOAST 3m`==6, "Indeterminado estudio incompleto", 
+                          ifelse(filas$`TOAST 3m`==4, "Indeterminado: causa desconocida", 
+                                 ifelse(filas$`TOAST 3m`==1, "Cardioembólico", 
+                                        ifelse(filas$`TOAST 3m`==0, "Aterotrombótico", NA))))
+toas_no <- filas$`TOAST 3m`
+toas <- c(toas_joan, toas_no)
+table(toas)
+```
+
+
+#Rank transformation 
+```{r}
+### total column
+# total individuals without na in brainomix
+rank_all_ids <- fread("/home/stroke/Documentos/Miquel_Gallardo/real_data/phenotype/Brainomixno_na.ids", header = F)
+rank_all_dat <- final_all[final_all$V1%in%rank_all_ids$V1,]
+# %females
+females <- rank_all_dat$V5.x.x
+table(females)
+# age median and quantiles 
+age <- rank_all_dat$Edat.x.x
+quantile(age, na.rm=T)
+#fumador
+fumador <- ifelse(rank_all_dat$fumador.x.x=="Sí", "Sí", "No")
+table(fumador)
+# aspects_b
+aspects_joan <- rank_all_dat$aspects_b.x.x.x
+aspects_no <- rank_all_dat$aspects_b.y.x.x
+aspects_b <- c(aspects_joan, aspects_no)
+quantile(aspects_b, na.rm = T)
+# hta 
+hta_joan <- rank_all_dat$hta.x.x
+hta_no <- ifelse(filas$hta==0, "No", "Sí")
+hta_b <- c(hta_joan, hta_no)
+table(hta_b)
+#diabetes_mellitus 
+diabetes_joan <- ifelse(rank_all_dat$diabetes_mellitus.x.x=="No", 0, 2)
+diabetes_no <-filas$diabetes_mellitus
+diabetes <- c(diabetes_joan, diabetes_no)
+table(diabetes)
+#Alcohol 
+alcohol_joan <- ifelse(rank_all_dat$alcohol.x.x=="Sí consumo de riesgo", 1, 0)
+alcohol_no <- filas$alcohol
+alcohol <- c(alcohol_joan, alcohol_no)
+table(alcohol)
+#nihss_b
+nihss_b_joan <-rank_all_dat$nihss_b.x.x
+nihss_b_no <- filas$`NIHSS basal`
+nihss_b <- c(nihss_b_joan, nihss_b_no)
+quantile(nihss_b, na.rm = T)
+#mrs alta
+mrs_joan <- ifelse(rank_all_dat$mrs_alta.x.x>2,1,0)
+mrs_no <- ifelse(filas$`mRS alta`>2,1,0)
+mrs_alta <- c(mrs_joan, mrs_no)
+table(mrs_alta)
+#mrs-prev
+mrs_prev_joan <-  ifelse(rank_all_dat$mrs_pre.x.x>2,1,0)
+mrs_prev_no <- ifelse(filas$`mRS previo`>2,1,0)
+mrs_prev <- c(mrs_prev_joan, mrs_prev_no)
+table(mrs_prev)
+#nihss_alta
+nihss_alta_joan <- rank_all_dat$nihss_alta.x.x
+nihss_alta_no <- filas$`NIHSS alta`
+nihss_alta <- c(nihss_alta_joan, nihss_alta_no)
+quantile(nihss_alta, na.rm = T)
+#cardiopatia isquemica
+card_isq_joan <- rank_all_dat$cardio_isq.y.x.x
+card_isq_no <- ifelse(filas$cardio_isq==0, "No", "Sí")
+card_isq <- c(card_isq_joan, card_isq_no)
+table(card_isq)
+# fa previa
+fa_prev_joan <- rank_all_dat$fa_previa.y.x.x
+fa_prev_no <- ifelse(filas$fa_previa==0, "No", "Sí")
+fa_prev <- c(fa_prev_joan, fa_prev_no)
+table(fa_prev)
+# precond isq cv 
+precond_isq_cv_joan <- rank_all_dat$precond_isq_cerebral.x.x
+precond_isq_cv_no <- ifelse(filas$precond_isq_cerebral==0, "No", "Sí")
+precond_isq <- c(precond_isq_cv_joan, precond_isq_cv_no)
+table(precond_isq)
+#transformacion hemorragica sint
+trans_hem_joan <- rank_all_dat$transf_hem_sint.y.x.x
+trans_hem_no <- ifelse(filas$transf_hem_sint==0, "No", "Sí")
+trans_hem <- c(trans_hem_joan, trans_hem_no)
+table(trans_hem)  
+#TOAS
+toas_joan <- rank_all_dat$toast_3meses.x.x
+filas$`TOAST 3m` <- ifelse(filas$`TOAST 3m`==6, "Indeterminado estudio incompleto", 
+                          ifelse(filas$`TOAST 3m`==4, "Indeterminado: causa desconocida", 
+                                 ifelse(filas$`TOAST 3m`==1, "Cardioembólico", 
+                                        ifelse(filas$`TOAST 3m`==0, "Aterotrombótico", NA))))
+toas_no <- filas$`TOAST 3m`
+toas <- c(toas_joan, toas_no)
+table(toas)
+```
+
+#Brainomix p-values
+```{r}
+# data formation
+db_joan_brx <- brx_all_dat[,c("V1", "ID_participant.x.x", "neuros_dic.x.x", "sexo.x.x", "edad.x.x", "fumador.x.x", "aspects_b.y.x.x", "hta.x.x", "diabetes_mellitus.x.x", "alcohol.x.x", "nihss_b.x.x", "mrs_alta.x.x", "mrs_pre.x.x", "nihss_alta.x.x", "cardio_isq.y.x.x", "fa_previa.y.x.x", "precond_isq_cerebral.x.x", "transf_hem_sint.y.x.x", "toast_3meses.x.x")]
+no <- brx_all_dat[brx_all_dat$ID_participant.x.x%in% c("90108", "90114", "90118", "90103", "90102", "90110", "90105", "90112", "90119", "90113","90106"),]
+colnames(no)[20] <- "sex"
+#jara_lite <- filas[filas$ID_participant%in%c("90108", "90114", "90118", "90103", "90102", "90110", "90105", "90112", "90119", "90113","90106"),]
+jara_lite<- jara_lite[jara_lite$ID_participant%in%no$ID_participant.x.x,]
+db_extra_brx1 <- no[, c("V1", "ID_participant.x.x", "neuros_dic.x.x","sex","Edat.x.x")]
+db_extra_brx2 <- jara_lite[, c("fumador", "aspects_b", "hta", "diabetes_mellitus", "alcohol", "nihss_b", "mrs_alta", "mrs_prev", "nihss_alta", "cardio_isq", "fa_previa", "precond_isq_cerebral", "transf_hem_sint", "toas_3m")]
+db_extra_brx <- cbind(db_extra_brx1, db_extra_brx2)
+
+colnames(jara_lite)[37] <-"mrs_alta"
+# igualo los valores de las dos datas
+db_extra_brx$sex <- ifelse(db_extra_brx$sex==0, "Hombre", "Mujer")
+db_joan_brx$edad.x.x <- as.numeric(db_joan_brx$edad.x.x)
+db_joan_brx$fumador.x.x <- ifelse(db_joan_brx$fumador.x.x =="Sí", "Sí", "No")
+db_extra_brx$fumador <- ifelse(db_extra_brx$fumador==1, "Sí", "No")
+db_extra_brx$hta <- ifelse(db_extra_brx$hta==0, "No", "Sí")
+db_joan_brx$diabetes_mellitus.x.x <- ifelse(db_joan_brx$diabetes_mellitus.x.x=="No", "No", "Sí")
+db_extra_brx$diabetes_mellitus <- ifelse(db_extra_brx$diabetes_mellitus==0, "No", "Sí")
+db_joan_brx$alcohol.x.x <- ifelse(db_joan_brx$alcohol.x.x=="Sí consumo de riesgo", "Sí", "No")
+db_extra_brx$alcohol <- ifelse(db_extra_brx$alcohol==1, "Sí", "No")
+db_extra_brx$cardio_isq <- ifelse(db_extra_brx$cardio_isq==0, "No", "Sí")
+db_extra_brx$fa_previa <- ifelse(db_extra_brx$fa_previa==0, "No", "Sí")
+db_extra_brx$precond_isq_cerebral <- ifelse(db_extra_brx$precond_isq_cerebral==0, "No", "Sí")
+db_extra_brx$transf_hem_sint <- ifelse(db_extra_brx$transf_hem_sint==0, "No", "Sí")
+db_extra_brx$toas_3m <- ifelse(db_extra_brx$toas_3m==6, "Indeterminado estudio incompleto", 
+                          ifelse(db_extra_brx$toas_3m==4, "Indeterminado: causa desconocida", 
+                                 ifelse(db_extra_brx$toas_3m==1, "Cardioembólico", 
+                                        ifelse(db_extra_brx$toas_3m==0, "Aterotrombótico", NA))))
+db_joan_brx$Aterotrombótico <- ifelse(db_joan_brx$toast_3meses.x.x=="Aterotrombótico", "Sí", "No")
+db_joan_brx$Cardioembólico <- ifelse(db_joan_brx$toast_3meses.x.x=="Cardioembólico", "Sí", "No")
+db_joan_brx$Etiología_infrecuente <- ifelse(db_joan_brx$toast_3meses.x.x=="Etiología infrecuente", "Sí", "No")
+db_joan_brx$Indeterminado <- ifelse(db_joan_brx$toast_3meses.x.x=="Indeterminado estudio incompleto", "Sí",
+                                     ifelse(db_joan_brx$toast_3meses.x.x=="Indeterminado: causa desconocida", "Sí", 
+                                            ifelse(db_joan_brx$toast_3meses.x.x=="Indeterminado: coexistencia de causas", "Sí", "No")))
+db_extra_brx$Aterotrombótico <- ifelse(db_extra_brx$toas_3m=="Aterotrombótico", "Sí", "No")
+db_extra_brx$Cardioembólico <- ifelse(db_extra_brx$toas_3m=="Cardioembólico", "Sí", "No")
+db_extra_brx$Etiología_infrecuente <- ifelse(db_extra_brx$toas_3m=="Etiología infrecuente", "Sí", "No")
+db_extra_brx$Indeterminado <- ifelse(db_extra_brx$toas_3m=="Indeterminado estudio incompleto", "Sí",
+                                     ifelse(db_extra_brx$toas_3m=="Indeterminado: causa desconocida", "Sí", 
+                                            ifelse(db_extra_brx$toas_3m=="Indeterminado: coexistencia de causas", "Sí", "No")))
+# llamo a las colunas iguales 
+colnames(db_joan_brx) <- colnames(db_extra_brx)
+# substituyo los 11 sin info en joan por los mismos 11 conm info en extra_db
+db_joan_brx <- db_joan_brx[!db_joan_brx$ID_participant.x.x%in% c("90108", "90114", "90118", "90103", "90102", "90110", "90105", "90112", "90119", "90113","90106"),]
+db_brx <- rbind(db_joan_brx,db_extra_brx)
+
+# calculo p-values
+
+# sex 
+sex_table <- table(db_brx$neuros_dic.x.x, db_brx$sex)
+p_sex <- chisq.test(sex_table)
+# age 
+p_age <- kruskal.test(db_brx$Edat.x.x~db_brx$neuros_dic.x.x)
+# aspects_b
+p_aspects_b <- kruskal.test(db_brx$aspects_b~db_brx$neuros_dic.x.x)
+# hta
+hta_table <- table(db_brx$neuros_dic.x.x, db_brx$hta)
+p_hta <- chisq.test(hta_table)
+# diabetes
+diabetes_table <- table(db_brx$neuros_dic.x.x, db_brx$diabetes_mellitus)
+p_diabetes <- chisq.test(diabetes_table)
+# alcohol
+alcohol_table <- table(db_brx$neuros_dic.x.x, db_brx$alcohol)
+p_alcohol <- chisq.test(alcohol_table)
+# nihss_b
+p_nihss_b <- kruskal.test(db_brx$nihss_b~db_brx$neuros_dic.x.x)
+# mrs_alta
+p_mrs_alta <- kruskal.test(db_brx$mrs_alta~db_brx$neuros_dic.x.x)
+# fumador
+fumador_table <- table(db_brx$neuros_dic.x.x, db_brx$fumador)
+p_fumador <- chisq.test(fumador_table)
+# mrs_prev
+p_mrs_prev <-kruskal.test(db_brx$mrs_prev~db_brx$neuros_dic.x.x)
+# nihss_alta
+p_nihss_alta <- kruskal.test(db_brx$nihss_alta~db_brx$neuros_dic.x.x)
+# cardio_isq
+cardio_isq_table <- table(db_brx$neuros_dic.x.x, db_brx$cardio_isq)
+p_cardio_isq <- chisq.test(cardio_isq_table)
+# fa_previa
+fa_previa_table <- table(db_brx$neuros_dic.x.x, db_brx$fa_previa)
+p_fa_previa <- chisq.test(fa_previa_table)
+# precond_isq_cerebral
+precond_isq_cerebral_table <- table(db_brx$neuros_dic.x.x, db_brx$precond_isq_cerebral)
+p_precond_isq_cerebral <- chisq.test(precond_isq_cerebral_table)
+# transf_hem_sint
+transf_hem_sint_table <- table(db_brx$neuros_dic.x.x, db_brx$transf_hem_sint)
+p_transf_hem_sint <- chisq.test(transf_hem_sint_table)
+# Aterotrombótico
+Aterotrombótico_table <- table(db_brx$neuros_dic.x.x, db_brx$Aterotrombótico)
+p_Aterotrombótico <- chisq.test(Aterotrombótico_table)
+# Cardioembólico
+Cardioembólico_table <- table(db_brx$neuros_dic.x.x, db_brx$Cardioembólico)
+p_Cardioembólico <- chisq.test(Cardioembólico_table)
+# Etiología_infrecuente
+Etiología_infrecuente_table <- table(db_brx$neuros_dic.x.x, db_brx$Etiología_infrecuente)
+p_Etiología_infrecuente <- chisq.test(Etiología_infrecuente_table)
+# Indeterminado
+Indeterminado_table <- table(db_brx$neuros_dic.x.x, db_brx$Indeterminado)
+p_Indeterminado <- chisq.test(Indeterminado_table)
+```
+
+#neuros p-values
+```{r}
+# data formation
+#colnames(neu_all_dat)[54] <-"neuros_dic"
+db_joan_neu <- neu_all_dat[,c("V1", "ID_participant.x.x", "neuros_dic", "sexo.x.x", "edad.x.x", "fumador.x.x", "aspects_b.y.x.x", "hta.x.x", "diabetes_mellitus.x.x", "alcohol.x.x", "nihss_b.x.x", "mrs_alta.x.x", "mrs_pre.x.x", "nihss_alta.x.x", "cardio_isq.y.x.x", "fa_previa.y.x.x", "precond_isq_cerebral.x.x", "transf_hem_sint.y.x.x", "toast_3meses.x.x")]
+no <- neu_all_dat[neu_all_dat$ID_participant.x.x%in% c("90108", "90114", "90118", "90103", "90102", "90110", "90105", "90112", "90119", "90113","90106"),]
+colnames(no)[20] <- "sex"
+#jara_lite <- filas[filas$ID_participant%in%c("90108", "90114", "90118", "90103", "90102", "90110", "90105", "90112", "90119", "90113","90106"),]
+jara_lite<- jara_lite[jara_lite$ID_participant%in%no$ID_participant.x.x,]
+db_extra_neu1 <- no[, c("V1", "ID_participant.x.x", "neuros_dic","sex","Edat.x.x")]
+db_extra_neu2 <- jara_lite[, c("fumador", "aspects_b", "hta", "diabetes_mellitus", "alcohol", "nihss_b", "mrs_alta", "mrs_prev", "nihss_alta", "cardio_isq", "fa_previa", "precond_isq_cerebral", "transf_hem_sint", "toas_3m")]
+db_extra_neu <- cbind(db_extra_neu1, db_extra_neu2)
+
+#colnames(jara_lite)[37] <-"mrs_alta"
+# igualo los valores de las dos datas
+db_extra_neu$sex <- ifelse(db_extra_neu$sex==0, "Hombre", "Mujer")
+db_joan_neu$edad.x.x <- as.numeric(db_joan_neu$edad.x.x)
+db_joan_neu$fumador.x.x <- ifelse(db_joan_neu$fumador.x.x =="Sí", "Sí", "No")
+db_extra_neu$fumador <- ifelse(db_extra_neu$fumador==1, "Sí", "No")
+db_extra_neu$hta <- ifelse(db_extra_neu$hta==0, "No", "Sí")
+db_joan_neu$diabetes_mellitus.x.x <- ifelse(db_joan_neu$diabetes_mellitus.x.x=="No", "No", "Sí")
+db_extra_neu$diabetes_mellitus <- ifelse(db_extra_neu$diabetes_mellitus==0, "No", "Sí")
+db_joan_neu$alcohol.x.x <- ifelse(db_joan_neu$alcohol.x.x=="Sí consumo de riesgo", "Sí", "No")
+db_extra_neu$alcohol <- ifelse(db_extra_neu$alcohol==1, "Sí", "No")
+db_extra_neu$cardio_isq <- ifelse(db_extra_neu$cardio_isq==0, "No", "Sí")
+db_extra_neu$fa_previa <- ifelse(db_extra_neu$fa_previa==0, "No", "Sí")
+db_extra_neu$precond_isq_cerebral <- ifelse(db_extra_neu$precond_isq_cerebral==0, "No", "Sí")
+db_extra_neu$transf_hem_sint <- ifelse(db_extra_neu$transf_hem_sint==0, "No", "Sí")
+db_extra_neu$toas_3m <- ifelse(db_extra_neu$toas_3m==6, "Indeterminado estudio incompleto", 
+                          ifelse(db_extra_neu$toas_3m==4, "Indeterminado: causa desconocida", 
+                                 ifelse(db_extra_neu$toas_3m==1, "Cardioembólico", 
+                                        ifelse(db_extra_neu$toas_3m==0, "Aterotrombótico", NA))))
+db_joan_neu$Aterotrombótico <- ifelse(db_joan_neu$toast_3meses.x.x=="Aterotrombótico", "Sí", "No")
+db_joan_neu$Cardioembólico <- ifelse(db_joan_neu$toast_3meses.x.x=="Cardioembólico", "Sí", "No")
+db_joan_neu$Etiología_infrecuente <- ifelse(db_joan_neu$toast_3meses.x.x=="Etiología infrecuente", "Sí", "No")
+db_joan_neu$Indeterminado <- ifelse(db_joan_neu$toast_3meses.x.x=="Indeterminado estudio incompleto", "Sí",
+                                     ifelse(db_joan_neu$toast_3meses.x.x=="Indeterminado: causa desconocida", "Sí", 
+                                            ifelse(db_joan_neu$toast_3meses.x.x=="Indeterminado: coexistencia de causas", "Sí", "No")))
+db_extra_neu$Aterotrombótico <- ifelse(db_extra_neu$toas_3m=="Aterotrombótico", "Sí", "No")
+db_extra_neu$Cardioembólico <- ifelse(db_extra_neu$toas_3m=="Cardioembólico", "Sí", "No")
+db_extra_neu$Etiología_infrecuente <- ifelse(db_extra_neu$toas_3m=="Etiología infrecuente", "Sí", "No")
+db_extra_neu$Indeterminado <- ifelse(db_extra_neu$toas_3m=="Indeterminado estudio incompleto", "Sí",
+                                     ifelse(db_extra_neu$toas_3m=="Indeterminado: causa desconocida", "Sí", 
+                                            ifelse(db_extra_neu$toas_3m=="Indeterminado: coexistencia de causas", "Sí", "No")))
+# llamo a las colunas iguales 
+colnames(db_joan_neu) <- colnames(db_extra_neu)
+# substituyo los 11 sin info en joan por los mismos 11 conm info en extra_db
+db_joan_neu <- db_joan_neu[!db_joan_neu$ID_participant.x.x%in% c("90108", "90114", "90118", "90103", "90102", "90110", "90105", "90112", "90119", "90113","90106"),]
+db_neu <- rbind(db_joan_neu,db_extra_neu)
+
+# calculo p-values
+
+# sex 
+sex_table <- table(db_neu$neuros_dic, db_neu$sex)
+p_sex <- chisq.test(sex_table)
+# age 
+p_age <- kruskal.test(db_neu$Edat.x.x~db_neu$neuros_dic)
+# aspects_b
+p_aspects_b <- kruskal.test(db_neu$aspects_b~db_neu$neuros_dic)
+# hta
+hta_table <- table(db_neu$neuros_dic, db_neu$hta)
+p_hta <- chisq.test(hta_table)
+# diabetes
+diabetes_table <- table(db_neu$neuros_dic, db_neu$diabetes_mellitus)
+p_diabetes <- chisq.test(diabetes_table)
+# alcohol
+alcohol_table <- table(db_neu$neuros_dic, db_neu$alcohol)
+p_alcohol <- chisq.test(alcohol_table)
+# nihss_b
+p_nihss_b <- kruskal.test(db_neu$nihss_b~db_neu$neuros_dic)
+# mrs_alta
+p_mrs_alta <- kruskal.test(db_neu$mrs_alta~db_neu$neuros_dic)
+# fumador
+fumador_table <- table(db_neu$neuros_dic, db_neu$fumador)
+p_fumador <- chisq.test(fumador_table)
+# mrs_prev
+p_mrs_prev <-kruskal.test(db_neu$mrs_prev~db_neu$neuros_dic)
+# nihss_alta
+p_nihss_alta <- kruskal.test(db_neu$nihss_alta~db_neu$neuros_dic)
+# cardio_isq
+cardio_isq_table <- table(db_neu$neuros_dic, db_neu$cardio_isq)
+p_cardio_isq <- chisq.test(cardio_isq_table)
+# fa_previa
+fa_previa_table <- table(db_neu$neuros_dic, db_neu$fa_previa)
+p_fa_previa <- chisq.test(fa_previa_table)
+# precond_isq_cerebral
+precond_isq_cerebral_table <- table(db_neu$neuros_dic, db_neu$precond_isq_cerebral)
+p_precond_isq_cerebral <- chisq.test(precond_isq_cerebral_table)
+# transf_hem_sint
+transf_hem_sint_table <- table(db_neu$neuros_dic, db_neu$transf_hem_sint)
+p_transf_hem_sint <- chisq.test(transf_hem_sint_table)
+# Aterotrombótico
+Aterotrombótico_table <- table(db_neu$neuros_dic, db_neu$Aterotrombótico)
+p_Aterotrombótico <- chisq.test(Aterotrombótico_table)
+# Cardioembólico
+Cardioembólico_table <- table(db_neu$neuros_dic, db_neu$Cardioembólico)
+p_Cardioembólico <- chisq.test(Cardioembólico_table)
+# Etiología_infrecuente
+Etiología_infrecuente_table <- table(db_neu$neuros_dic, db_neu$Etiología_infrecuente)
+p_Etiología_infrecuente <- chisq.test(Etiología_infrecuente_table)
+# Indeterminado
+Indeterminado_table <- table(db_neu$neuros_dic, db_neu$Indeterminado)
+p_Indeterminado <- chisq.test(Indeterminado_table)
+```
+
+#%collaterals p-values
+```{r}
+# data formation
+colnames(coll_all_dat)[51]<-"collaterals"
+db_joan_coll <- coll_all_dat[,c("V1", "ID_participant.x.x", "collaterals", "sexo.x.x", "edad.x.x", "fumador.x.x", "aspects_b.y.x.x", "hta.x.x", "diabetes_mellitus.x.x", "alcohol.x.x", "nihss_b.x.x", "mrs_alta.x.x", "mrs_pre.x.x", "nihss_alta.x.x", "cardio_isq.y.x.x", "fa_previa.y.x.x", "precond_isq_cerebral.x.x", "transf_hem_sint.y.x.x", "toast_3meses.x.x")]
+no <- coll_all_dat[coll_all_dat$ID_participant.x.x%in% c("90108", "90114", "90118", "90103", "90102", "90110", "90105", "90112", "90119", "90113","90106"),]
+colnames(no)[20] <- "sex"
+#jara_lite <- filas[filas$ID_participant%in%c("90108", "90114", "90118", "90103", "90102", "90110", "90105", "90112", "90119", "90113","90106"),]
+jara_lite<- jara_lite[jara_lite$ID_participant%in%no$ID_participant.x.x,]
+db_extra_coll1 <- no[, c("V1", "ID_participant.x.x", "collaterals","sex","Edat.x.x")]
+db_extra_coll2 <- jara_lite[, c("fumador", "aspects_b", "hta", "diabetes_mellitus", "alcohol", "nihss_b", "mrs_alta", "mrs_prev", "nihss_alta", "cardio_isq", "fa_previa", "precond_isq_cerebral", "transf_hem_sint", "toas_3m")]
+db_extra_coll <- cbind(db_extra_coll1, db_extra_coll2)
+
+colnames(jara_lite)[37] <-"mrs_alta"
+# igualo los valores de las dos datas
+db_extra_coll$sex <- ifelse(db_extra_coll$sex==0, "Hombre", "Mujer")
+db_joan_coll$edad.x.x <- as.numeric(db_joan_coll$edad.x.x)
+db_joan_coll$fumador.x.x <- ifelse(db_joan_coll$fumador.x.x =="Sí", "Sí", "No")
+db_extra_coll$fumador <- ifelse(db_extra_coll$fumador==1, "Sí", "No")
+db_extra_coll$hta <- ifelse(db_extra_coll$hta==0, "No", "Sí")
+db_joan_coll$diabetes_mellitus.x.x <- ifelse(db_joan_coll$diabetes_mellitus.x.x=="No", "No", "Sí")
+db_extra_coll$diabetes_mellitus <- ifelse(db_extra_coll$diabetes_mellitus==0, "No", "Sí")
+db_joan_coll$alcohol.x.x <- ifelse(db_joan_coll$alcohol.x.x=="Sí consumo de riesgo", "Sí", "No")
+db_extra_coll$alcohol <- ifelse(db_extra_coll$alcohol==1, "Sí", "No")
+db_extra_coll$cardio_isq <- ifelse(db_extra_coll$cardio_isq==0, "No", "Sí")
+db_extra_coll$fa_previa <- ifelse(db_extra_coll$fa_previa==0, "No", "Sí")
+db_extra_coll$precond_isq_cerebral <- ifelse(db_extra_coll$precond_isq_cerebral==0, "No", "Sí")
+db_extra_coll$transf_hem_sint <- ifelse(db_extra_coll$transf_hem_sint==0, "No", "Sí")
+db_extra_coll$toas_3m <- ifelse(db_extra_coll$toas_3m==6, "Indeterminado estudio incompleto", 
+                          ifelse(db_extra_coll$toas_3m==4, "Indeterminado: causa desconocida", 
+                                 ifelse(db_extra_coll$toas_3m==1, "Cardioembólico", 
+                                        ifelse(db_extra_coll$toas_3m==0, "Aterotrombótico", NA))))
+db_joan_coll$Aterotrombótico <- ifelse(db_joan_coll$toast_3meses.x.x=="Aterotrombótico", "Sí", "No")
+db_joan_coll$Cardioembólico <- ifelse(db_joan_coll$toast_3meses.x.x=="Cardioembólico", "Sí", "No")
+db_joan_coll$Etiología_infrecuente <- ifelse(db_joan_coll$toast_3meses.x.x=="Etiología infrecuente", "Sí", "No")
+db_joan_coll$Indeterminado <- ifelse(db_joan_coll$toast_3meses.x.x=="Indeterminado estudio incompleto", "Sí",
+                                     ifelse(db_joan_coll$toast_3meses.x.x=="Indeterminado: causa desconocida", "Sí", 
+                                            ifelse(db_joan_coll$toast_3meses.x.x=="Indeterminado: coexistencia de causas", "Sí", "No")))
+db_extra_coll$Aterotrombótico <- ifelse(db_extra_coll$toas_3m=="Aterotrombótico", "Sí", "No")
+db_extra_coll$Cardioembólico <- ifelse(db_extra_coll$toas_3m=="Cardioembólico", "Sí", "No")
+db_extra_coll$Etiología_infrecuente <- ifelse(db_extra_coll$toas_3m=="Etiología infrecuente", "Sí", "No")
+db_extra_coll$Indeterminado <- ifelse(db_extra_coll$toas_3m=="Indeterminado estudio incompleto", "Sí",
+                                     ifelse(db_extra_coll$toas_3m=="Indeterminado: causa desconocida", "Sí", 
+                                            ifelse(db_extra_coll$toas_3m=="Indeterminado: coexistencia de causas", "Sí", "No")))
+# llamo a las colunas iguales 
+colnames(db_joan_coll) <- colnames(db_extra_coll)
+# substituyo los 11 sin info en joan por los mismos 11 conm info en extra_db
+db_joan_coll <- db_joan_coll[!db_joan_coll$ID_participant.x.x%in% c("90108", "90114", "90118", "90103", "90102", "90110", "90105", "90112", "90119", "90113","90106"),]
+db_coll <- rbind(db_joan_coll,db_extra_coll)
+
+# calculo p-values
+
+# sex 
+p_sex <- kruskal.test(db_coll$collaterals~db_coll$sex)
+# age 
+p_age <- cor.test(db_coll$collaterals, db_coll$Edat.x.x, method = "spearman")
+# aspects_b
+p_aspects_b <-  cor.test(db_coll$collaterals, db_coll$aspects_b,  method = "spearman")
+# hta
+p_hta <- kruskal.test(db_coll$collaterals~db_coll$hta)
+# diabetes
+p_diabetes <- kruskal.test(db_coll$collaterals~db_coll$diabetes_mellitus)
+# alcohol
+p_alcohol <- kruskal.test(db_coll$collaterals~db_coll$alcohol)
+# nihss_b
+p_nihss_b <- cor.test(db_coll$collaterals, db_coll$nihss_b, method = "spearman")
+# mrs_alta
+p_mrs_alta <- cor.test(db_coll$collaterals, db_coll$mrs_alta, method = "spearman")
+# fumador
+p_fumador <- kruskal.test(db_coll$collaterals~db_coll$fumador)
+# mrs_prev
+p_mrs_mrs_prev <- cor.test(db_coll$collaterals, db_coll$mrs_prev, method = "spearman")
+# nihss_alta
+p_nihss_alta <- cor.test(db_coll$collaterals, db_coll$nihss_alta, method = "spearman")
+# cardio_isq
+p_cardio_isq <- kruskal.test(db_coll$collaterals~db_coll$cardio_isq)
+# fa_previa
+p_fa_previa <- kruskal.test(db_coll$collaterals~db_coll$fa_previa)
+# precond_isq_cerebral
+p_precond_isq_cerebral <- kruskal.test(db_coll$collaterals~db_coll$precond_isq_cerebral)
+# transf_hem_sint
+p_transf_hem_sint <- kruskal.test(db_coll$collaterals~db_coll$transf_hem_sint)
+# Aterotrombótico
+p_Aterotrombótico<- kruskal.test(db_coll$collaterals~db_coll$Aterotrombótico)
+# Cardioembólico
+p_Cardioembólico <- kruskal.test(db_coll$collaterals~db_coll$Cardioembólico)
+# Etiología_infrecuente
+p_Etiología_infrecuente <- kruskal.test(db_coll$collaterals~db_coll$Etiología_infrecuente)
+# Indeterminado
+p_Indeterminado <- kruskal.test(db_coll$collaterals~db_coll$Indeterminado)
+```
+
+#rank transformation p-values
+```{r}
+# data formation
+colnames(rank_all_dat)[402]<-"rank"
+db_joan_rank <- rank_all_dat[,c("V1", "ID_participant.x.x", "rank", "sexo.x.x", "edad.x.x", "fumador.x.x", "aspects_b.y.x.x", "hta.x.x", "diabetes_mellitus.x.x", "alcohol.x.x", "nihss_b.x.x", "mrs_alta.x.x", "mrs_pre.x.x", "nihss_alta.x.x", "cardio_isq.y.x.x", "fa_previa.y.x.x", "precond_isq_cerebral.x.x", "transf_hem_sint.y.x.x", "toast_3meses.x.x")]
+no <- rank_all_dat[rank_all_dat$ID_participant.x.x%in% c("90108", "90114", "90118", "90103", "90102", "90110", "90105", "90112", "90119", "90113","90106"),]
+colnames(no)[20] <- "sex"
+#jara_lite <- filas[filas$ID_participant%in%c("90108", "90114", "90118", "90103", "90102", "90110", "90105", "90112", "90119", "90113","90106"),]
+jara_lite<- jara_lite[jara_lite$ID_participant%in%no$ID_participant.x.x,]
+db_extra_rank1 <- no[, c("V1", "ID_participant.x.x", "rank","sex","Edat.x.x")]
+db_extra_rank2 <- jara_lite[, c("fumador", "aspects_b", "hta", "diabetes_mellitus", "alcohol", "nihss_b", "mrs_alta", "mrs_prev", "nihss_alta", "cardio_isq", "fa_previa", "precond_isq_cerebral", "transf_hem_sint", "toas_3m")]
+db_extra_rank <- cbind(db_extra_rank1, db_extra_rank2)
+
+colnames(jara_lite)[37] <-"mrs_alta"
+# igualo los valores de las dos datas
+db_extra_rank$sex <- ifelse(db_extra_rank$sex==0, "Hombre", "Mujer")
+db_joan_rank$edad.x.x <- as.numeric(db_joan_rank$edad.x.x)
+db_joan_rank$fumador.x.x <- ifelse(db_joan_rank$fumador.x.x =="Sí", "Sí", "No")
+db_extra_rank$fumador <- ifelse(db_extra_rank$fumador==1, "Sí", "No")
+db_extra_rank$hta <- ifelse(db_extra_rank$hta==0, "No", "Sí")
+db_joan_rank$diabetes_mellitus.x.x <- ifelse(db_joan_rank$diabetes_mellitus.x.x=="No", "No", "Sí")
+db_extra_rank$diabetes_mellitus <- ifelse(db_extra_rank$diabetes_mellitus==0, "No", "Sí")
+db_joan_rank$alcohol.x.x <- ifelse(db_joan_rank$alcohol.x.x=="Sí consumo de riesgo", "Sí", "No")
+db_extra_rank$alcohol <- ifelse(db_extra_rank$alcohol==1, "Sí", "No")
+db_extra_rank$cardio_isq <- ifelse(db_extra_rank$cardio_isq==0, "No", "Sí")
+db_extra_rank$fa_previa <- ifelse(db_extra_rank$fa_previa==0, "No", "Sí")
+db_extra_rank$precond_isq_cerebral <- ifelse(db_extra_rank$precond_isq_cerebral==0, "No", "Sí")
+db_extra_rank$transf_hem_sint <- ifelse(db_extra_rank$transf_hem_sint==0, "No", "Sí")
+db_extra_rank$toas_3m <- ifelse(db_extra_rank$toas_3m==6, "Indeterminado estudio incompleto", 
+                          ifelse(db_extra_rank$toas_3m==4, "Indeterminado: causa desconocida", 
+                                 ifelse(db_extra_rank$toas_3m==1, "Cardioembólico", 
+                                        ifelse(db_extra_rank$toas_3m==0, "Aterotrombótico", NA))))
+db_joan_rank$Aterotrombótico <- ifelse(db_joan_rank$toast_3meses.x.x=="Aterotrombótico", "Sí", "No")
+db_joan_rank$Cardioembólico <- ifelse(db_joan_rank$toast_3meses.x.x=="Cardioembólico", "Sí", "No")
+db_joan_rank$Etiología_infrecuente <- ifelse(db_joan_rank$toast_3meses.x.x=="Etiología infrecuente", "Sí", "No")
+db_joan_rank$Indeterminado <- ifelse(db_joan_rank$toast_3meses.x.x=="Indeterminado estudio incompleto", "Sí",
+                                     ifelse(db_joan_rank$toast_3meses.x.x=="Indeterminado: causa desconocida", "Sí", 
+                                            ifelse(db_joan_rank$toast_3meses.x.x=="Indeterminado: coexistencia de causas", "Sí", "No")))
+db_extra_rank$Aterotrombótico <- ifelse(db_extra_rank$toas_3m=="Aterotrombótico", "Sí", "No")
+db_extra_rank$Cardioembólico <- ifelse(db_extra_rank$toas_3m=="Cardioembólico", "Sí", "No")
+db_extra_rank$Etiología_infrecuente <- ifelse(db_extra_rank$toas_3m=="Etiología infrecuente", "Sí", "No")
+db_extra_rank$Indeterminado <- ifelse(db_extra_rank$toas_3m=="Indeterminado estudio incompleto", "Sí",
+                                     ifelse(db_extra_rank$toas_3m=="Indeterminado: causa desconocida", "Sí", 
+                                            ifelse(db_extra_rank$toas_3m=="Indeterminado: coexistencia de causas", "Sí", "No")))
+# llamo a las colunas iguales 
+colnames(db_joan_rank) <- colnames(db_extra_rank)
+# substituyo los 11 sin info en joan por los mismos 11 conm info en extra_db
+db_joan_rank <- db_joan_rank[!db_joan_rank$ID_participant.x.x%in% c("90108", "90114", "90118", "90103", "90102", "90110", "90105", "90112", "90119", "90113","90106"),]
+db_rank <- rbind(db_joan_rank,db_extra_rank)
+
+# calculo p-values
+
+# sex 
+p_sex <- kruskal.test(db_rank$rank~db_rank$sex)
+# age 
+p_age <- cor.test(db_rank$rank, db_rank$Edat.x.x, method = "spearman")
+# aspects_b
+p_aspects_b <-  cor.test(db_rank$rank, db_rank$aspects_b,  method = "spearman")
+# hta
+p_hta <- kruskal.test(db_rank$rank~db_rank$hta)
+# diabetes
+p_diabetes <- kruskal.test(db_rank$rank~db_rank$diabetes_mellitus)
+# alcohol
+p_alcohol <- kruskal.test(db_rank$rank~db_rank$alcohol)
+# nihss_b
+p_nihss_b <- cor.test(db_rank$rank, db_rank$nihss_b, method = "spearman")
+# mrs_alta
+p_mrs_alta <- cor.test(db_rank$rank, db_rank$mrs_alta, method = "spearman")
+# fumador
+p_fumador <- kruskal.test(db_rank$rank~db_rank$fumador)
+# mrs_prev
+p_mrs_mrs_prev <- cor.test(db_rank$rank, db_rank$mrs_prev, method = "spearman")
+# nihss_alta
+p_nihss_alta <- cor.test(db_rank$rank, db_rank$nihss_alta, method = "spearman")
+# cardio_isq
+p_cardio_isq <- kruskal.test(db_rank$rank~db_rank$cardio_isq)
+# fa_previa
+p_fa_previa <- kruskal.test(db_rank$rank~db_rank$fa_previa)
+# precond_isq_cerebral
+p_precond_isq_cerebral <- kruskal.test(db_rank$rank~db_rank$precond_isq_cerebral)
+# transf_hem_sint
+p_transf_hem_sint <- kruskal.test(db_rank$rank~db_rank$transf_hem_sint)
+# Aterotrombótico
+p_Aterotrombótico<- kruskal.test(db_rank$rank~db_rank$Aterotrombótico)
+# Cardioembólico
+p_Cardioembólico <- kruskal.test(db_rank$rank~db_rank$Cardioembólico)
+# Etiología_infrecuente
+p_Etiología_infrecuente <- kruskal.test(db_rank$rank~db_rank$Etiología_infrecuente)
+# Indeterminado
+p_Indeterminado <- kruskal.test(db_rank$rank~db_rank$Indeterminado)
+```
+
+
+

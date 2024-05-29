@@ -1,0 +1,152 @@
+---
+title: "Datos_colaterales"
+author: "Miquel Gallardo"
+date: "2024-2-10"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(readxl)
+library(data.table)
+```
+
+```{r}
+mt003 <- fread("/home/stroke/Documentos/Miquel_Gallardo/real_data/Cohort_1and2_QC/ASB003-mastertable_upSmoking_2024.txt")
+mt005 <- fread("/home/stroke/Documentos/Miquel_Gallardo/real_data/Cohort_1and2_QC/ASB005-mastertable_upSmoking_2024.txt")
+
+ASB003_ASB005.mastertable <- rbind(mt003, mt005)
+
+ids_coliseum <- c("COLISEUM-071", "HM-35", "COLISEUM-072", "HM-36", "COLISEUM-075", "COLISEUM-077", "HM-38", "COLISEUM-078", "COLISEUM-079", "COLISEUM-081", "COLISEUM-083", "401", "4298", "HM-22", "898", "HM-39", "923", "COLISEUM-002")
+```
+
+# Data bases
+```{r}
+Base_de_dades_COLISEUM_ANAnew <- read_excel("/home/stroke/Documentos/Miquel_Gallardo/real_data/phenotype/Base de dades COLISEUM - nonhc.xlsx")
+Base_de_dades_COLISEUM_joan <- read_excel("/home/stroke/Documentos/Miquel_Gallardo/real_data/phenotype/base coliseum_joan.xlsx")
+base_final <- merge(Base_de_dades_COLISEUM_ANAnew, Base_de_dades_COLISEUM_joan, by.x = "ID_participant", by.y = "id_participante", all.x = T)
+```
+
+## New data
+### Wave 3
+```{r}
+base_final$`ID_MOSTRA(SPBS)` <- toupper(base_final$`ID_MOSTRA(SPBS)`)
+table(ids_coliseum%in% base_final$`ID_MOSTRA(SPBS)`)
+ids_coliseum[!ids_coliseum%in% base_final$`ID_MOSTRA(SPBS)`] 
+```
+
+### Waves 1 y 2
+
+```{r}
+datos_colateralesnew <- base_final[!is.na(base_final$ID_participant),]
+datos_colateralesnew <- merge(datos_colateralesnew, ASB003_ASB005.mastertable, by.x="ID_participant", by.y="PatientIdentification#5")
+quantile(datos_colateralesnew$`%Colaterals`,na.rm=T)
+
+datos_colateralesnew$fam_ID <- paste0(datos_colateralesnew$GWAS_ID,"_", datos_colateralesnew$GWAS_ID)
+
+datos_colateralesnew.score <- datos_colateralesnew[!is.na(datos_colateralesnew$`CSdicotom_Quino_JP(0:malas 0-1; 1:buenas 2-3)`),]
+datos_colateralesnew.porc <- datos_colateralesnew[!is.na(datos_colateralesnew$`%Colaterals`),]
+
+fam <- fread("/home/stroke/Documentos/Miquel_Gallardo/real_data/data/imputed_data/ASB003_ASB005_ASB006_final.fam")
+fam$V1 <- gsub("\\.CEL", "", fam$V1)
+fam$V2 <- gsub("\\.CEL", "", fam$V2)
+fam$V1 <- paste0(fam$V1, "_", fam$V1)
+fam$V2 <- paste0(fam$V2, "_", fam$V2)
+
+table(datos_colateralesnew.score$fam_ID%in% fam$V1)
+table(datos_colateralesnew.porc$fam_ID%in% fam$V1)
+```
+
+# add dichotomized column
+```{r}
+base_final$CSdicotom_Brainomix <- ifelse(base_final$CSBrainomix>1, 1, 0)
+```
+
+# MASTER TABLE 1 Y 2
+```{r}
+conv <- ASB003_ASB005.mastertable[,c("PatientIdentification#5","GWAS_ID")]
+conv <- conv[!is.na(conv$`PatientIdentification#5`),]
+conv$GWAS_ID <- paste0(conv$GWAS_ID,"_",conv$GWAS_ID)
+mt_tanda12 <- merge(base_final, conv, by.x="ID_participant", by.y="PatientIdentification#5")
+```
+
+# MASTER TABLE 3
+```{r}
+mt_tanda3 <- base_final[!base_final$ID_participant %in% mt_tanda12$ID_participant, ]
+mt_tanda3 <- mt_tanda3[!is.na(mt_tanda3$ID_participant),]
+mt_tanda3$GWAS_ID <- paste0(mt_tanda3$`ID_MOSTRA(SPBS)`, "_", mt_tanda3$`ID_MOSTRA(SPBS)`)
+mt_tanda3$GWAS_ID <- gsub("-", "_", mt_tanda3$GWAS_ID)
+```
+
+#BIND MASTER TABLES
+```{r}
+mt_all <- rbind(mt_tanda12, mt_tanda3)
+```
+```{r}
+table(fam$V1%in% mt_all$GWAS_ID)
+```
+
+
+# MERGE FAM/MT
+```{r}
+final_all <- merge(fam, mt_all, all.x = T, sort = F, by.x = "V1", by.y = "GWAS_ID")
+table(mt_all$GWAS_ID %in% fam$V1)
+mt_all$GWAS_ID[!mt_all$GWAS_ID%in% fam$V1] 
+```
+
+# Save ids with collateral data to a txt file
+```{r}
+at_least_one_not_na <- function(row){
+  any(!is.na(row))
+}
+
+print(colSums(!is.na(final_all[, c(51,54,400)])))
+
+row_ind <- apply(final_all[, c(51,54,400)], 1, at_least_one_not_na)
+
+subset_df <- final_all[row_ind,]
+```
+
+# Add rank transformation of the collaterals
+```{r}
+library(RNOmni)
+no_na <- subset_df[!is.na(subset_df$`%ColateralsBrainomix`), ]
+
+no_na$RankNorm <- RankNorm(no_na$`%ColateralsBrainomix`)
+
+final_all <- merge(subset_df, no_na, by = "V1", all.x = T)
+final_all <- final_all[,-c(401:799)]
+```
+
+# Save new daa in an excel
+```{r}
+library(openxlsx)
+write.xlsx(final_all, "/home/stroke/Documentos/Miquel_Gallardo/real_data/phenotype/final_all.xlsx")
+```
+
+# CREATION OF THE COVAR FILE
+```{r}
+covar <- final_all[, c(1,1,5)]
+covar$V5 <- ifelse(covar$V5 == 0, "Male", "Female")
+
+write.table(covar, "/home/stroke/Documentos/Miquel_Gallardo/real_data/phenotype/covar.txt", sep = " ", col.names = F, row.names = F, quote = F)
+```
+
+# CREATION OF THE PHENO FILES
+```{r}
+pheno_SCbrainomics_dicot <- final_all[, c(1,1,400)]
+write.table(pheno_SCbrainomics_dicot, "/home/stroke/Documentos/Miquel_Gallardo/real_data/phenotype/pheno_SCbrainomics_dicot.txt", sep = " ", col.names = F, row.names = F, quote = F)
+
+pheno_SCneurorad_dicot <- final_all[, c(1,1,54)]
+write.table(pheno_SCneurorad_dicot, "/home/stroke/Documentos/Miquel_Gallardo/real_data/phenotype/pheno_SCneurorad_dicot.txt", sep = " ", col.names = F, row.names = F, quote = F)
+
+pheno_collaterals <- final_all[, c(1,1,51)]
+write.table(pheno_collaterals, "/home/stroke/Documentos/Miquel_Gallardo/real_data/phenotype/pheno_collaterals.txt", sep = " ", col.names = F, row.names = F, quote = F)
+
+pheno_collaterals_rank_tranformed <- final_all[, c(1,1,401)]
+write.table(pheno_collaterals_rank_tranformed, "/home/stroke/Documentos/Miquel_Gallardo/real_data/phenotype/pheno_collaterals_rank_tranformed.txt", sep = " ", col.names = F, row.names = F, quote = F)
+```
+
